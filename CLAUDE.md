@@ -1,0 +1,203 @@
+# Kinnect
+
+A private, Instagram-style iOS app for sharing photos and videos with close family and friends.
+
+---
+
+## Project Overview
+
+**Kinnect** is a private social photo sharing app designed for intimate circles — not the public internet. It replicates the look and feel of Instagram but strips away ads, algorithms, and public access. Users can upload photos and videos, view a feed of posts from people they follow, and interact through likes and comments.
+
+The goal is **simplicity and privacy**: a beautiful, familiar experience tailored for small groups of trusted people.
+
+---
+
+## Core Features (MVP)
+
+- **User Authentication** via Sign in with Apple
+- **Photo & Video Upload** — capture or select from library
+- **Feed** showing posts from followed users (chronological)
+- **Like & Comment System** for social interaction
+- **Profile View** displaying user posts and metadata
+- **Push Notifications** (optional) for new likes, comments, and posts
+- **Future Enhancements:**
+  - Stories (24-hour ephemeral posts)
+  - Basic direct messaging
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | Swift + SwiftUI (iOS 17+) |
+| **Backend** | Supabase (PostgreSQL + Auth + Storage + Realtime) |
+| **Storage** | Supabase Storage (private bucket + signed URLs) |
+| **Authentication** | Sign in with Apple (via Supabase Auth) |
+| **Realtime Updates** | Supabase Realtime API |
+| **Testing** | Swift Testing + XCTest UI Tests |
+| **Local Caching** | iOS file system + optional SwiftData |
+| **Hosting** | Supabase managed instance (no custom server) |
+
+---
+
+## Architecture
+
+**Pattern:** MVVM (Model-View-ViewModel) using SwiftUI
+
+### Core Modules
+
+- **`AuthViewModel`** – manages authentication state and Sign in with Apple flow
+- **`FeedViewModel`** – fetches and renders the post feed
+- **`UploadViewModel`** – handles camera capture and background uploads
+- **`ProfileViewModel`** – manages user profile and post history
+
+### Key Design Decisions
+
+- **Media Uploads:** `URLSession` background tasks upload to Supabase signed URLs
+- **Data Source:** Supabase PostgreSQL accessed via Supabase iOS SDK
+- **Realtime Updates:** Subscribe to new posts via Supabase Realtime
+- **Testing:** Unit tests cover ViewModels; UI tests validate feed rendering, upload flow, and auth state
+
+---
+
+## Database Schema (Simplified)
+
+```sql
+-- User profiles
+profiles (
+  user_id UUID PRIMARY KEY REFERENCES auth.users,
+  username TEXT UNIQUE NOT NULL,
+  avatar_url TEXT,
+  full_name TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+)
+
+-- Following relationships
+follows (
+  follower UUID REFERENCES profiles(user_id),
+  followee UUID REFERENCES profiles(user_id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (follower, followee)
+)
+
+-- Posts
+posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  author UUID REFERENCES profiles(user_id),
+  caption TEXT,
+  media_key TEXT NOT NULL,  -- Supabase Storage object path
+  media_type TEXT NOT NULL,  -- 'photo' or 'video'
+  created_at TIMESTAMP DEFAULT NOW()
+)
+
+-- Likes
+likes (
+  post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES profiles(user_id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (post_id, user_id)
+)
+
+-- Comments
+comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES profiles(user_id),
+  body TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+)
+```
+
+### Row-Level Security (RLS)
+
+- Users can **read posts** from themselves or people they follow
+- Users can **create posts** only for themselves
+- Users can **like/comment** on visible posts
+- Media files are stored in a **private bucket** with signed URL access only
+
+---
+
+## Security & Privacy
+
+- **Private, invite-only app** with Sign in with Apple
+- **Row-Level Security (RLS)** enforced on all database tables
+- **Media stored privately** using Supabase Storage with signed URL access
+- **No public endpoints** — all access authenticated via Supabase JWTs
+- **No tracking, ads, or algorithmic feeds** — user privacy is paramount
+
+---
+
+## Design Principles
+
+**Visual Style:** Replicate Instagram's UI and UX as closely as possible
+
+### Layout & Navigation
+
+- **Bottom tab bar** with:
+  - Feed
+  - Search (optional for later phases)
+  - Upload (center button)
+  - Activity
+  - Profile
+- **Full-width image cards** with username, avatar, likes, and comments
+- **Rounded avatars** and uniform media aspect ratios
+
+### Color & Typography
+
+- **Minimalist color scheme:**
+  - White background
+  - Dark text (primary labels)
+  - Subtle gray dividers and secondary text
+- **Typography:** Apple San Francisco (SF Pro)
+- **Layout:** Spacious, clean, mirroring Instagram's design language
+
+### Animations & Interactions
+
+- **Subtle animations:** Fades and springs for navigation and state changes
+- **Native feel:** Mimic Instagram's transitions (e.g., like animation, comment slide-in)
+- **Consistency:** Every interaction should feel intuitive and responsive
+
+### Accessibility
+
+- Follow iOS **system font scaling** (Dynamic Type)
+- Support **Dark Mode** preferences
+- Provide **VoiceOver labels** for all interactive elements
+
+### Goal
+
+If a user opened Kinnect by accident, it should **look like Instagram** — but behave like a private, ad-free version for their close circle.
+
+---
+
+## Development Guidelines
+
+### Code Organization
+
+- **Keep code modular** using MVVM
+- **SwiftUI views** should remain declarative and side-effect free
+- **ViewModels** handle business logic, state management, and async operations
+
+### Testing
+
+- Write **unit tests** for all ViewModels
+- Write **UI tests** for critical user flows (auth, upload, feed)
+- Add new features incrementally and test thoroughly
+
+### Backend Logic
+
+- Use **Supabase Edge Functions** (TypeScript) sparingly for privileged server tasks:
+  - Signed URL generation
+  - Push notification dispatch
+  - Admin operations (e.g., user moderation)
+
+### Priorities
+
+1. **Simplicity** — avoid over-engineering
+2. **Privacy** — never compromise user data
+3. **Reliability** — ensure smooth, bug-free experiences
+
+---
+
+
+**Built with Swift, SwiftUI, and Supabase.**
