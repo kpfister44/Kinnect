@@ -20,18 +20,18 @@ final class AuthService {
     // MARK: - Session Management
 
     /// Returns the current authenticated user's ID
-    var currentUserId: UUID? {
-        return try? client.auth.session.user.id
+    func currentUserId() async -> UUID? {
+        return try? await client.auth.session.user.id
     }
 
     /// Returns the current session
-    var currentSession: Session? {
-        return try? client.auth.session
+    func currentSession() async -> Session? {
+        return try? await client.auth.session
     }
 
     /// Check if user is authenticated
-    var isAuthenticated: Bool {
-        return currentSession != nil
+    func isAuthenticated() async -> Bool {
+        return await currentSession() != nil
     }
 
     // MARK: - Sign In with Apple
@@ -57,7 +57,7 @@ final class AuthService {
 
     /// Check if user has completed profile setup (username exists)
     func hasCompletedProfile() async throws -> Bool {
-        guard let userId = currentUserId else {
+        guard let userId = await currentUserId() else {
             return false
         }
 
@@ -73,11 +73,17 @@ final class AuthService {
 
     /// Create initial profile for new user
     func createProfile(userId: UUID, username: String, fullName: String?) async throws {
-        let profile: [String: Any] = [
-            "user_id": userId.uuidString,
-            "username": username,
-            "full_name": fullName as Any
-        ]
+        struct ProfileInsert: Encodable {
+            let user_id: String
+            let username: String
+            let full_name: String?
+        }
+
+        let profile = ProfileInsert(
+            user_id: userId.uuidString,
+            username: username,
+            full_name: fullName
+        )
 
         try await client
             .from("profiles")

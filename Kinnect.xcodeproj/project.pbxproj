@@ -6,6 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		217BF5662EA2D83F00010E2E /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 217BF5652EA2D83F00010E2E /* Auth */; };
+		217BF5682EA2D83F00010E2E /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = 217BF5672EA2D83F00010E2E /* Functions */; };
+		217BF56A2EA2D83F00010E2E /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = 217BF5692EA2D83F00010E2E /* PostgREST */; };
+		217BF56C2EA2D83F00010E2E /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 217BF56B2EA2D83F00010E2E /* Realtime */; };
+		217BF56E2EA2D83F00010E2E /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 217BF56D2EA2D83F00010E2E /* Storage */; };
+		217BF5702EA2DA5000010E2E /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 217BF56F2EA2DA5000010E2E /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		217BF5212EA2A55100010E2E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +61,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				217BF56A2EA2D83F00010E2E /* PostgREST in Frameworks */,
+				217BF5682EA2D83F00010E2E /* Functions in Frameworks */,
+				217BF5702EA2DA5000010E2E /* Supabase in Frameworks */,
+				217BF5662EA2D83F00010E2E /* Auth in Frameworks */,
+				217BF56E2EA2D83F00010E2E /* Storage in Frameworks */,
+				217BF56C2EA2D83F00010E2E /* Realtime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +93,7 @@
 				217BF5152EA2A55000010E2E /* Kinnect */,
 				217BF5232EA2A55100010E2E /* KinnectTests */,
 				217BF52D2EA2A55100010E2E /* KinnectUITests */,
+				217BF5632EA2D7F000010E2E /* Frameworks */,
 				217BF5142EA2A55000010E2E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +106,13 @@
 				217BF52A2EA2A55100010E2E /* KinnectUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		217BF5632EA2D7F000010E2E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -112,6 +135,12 @@
 			);
 			name = Kinnect;
 			packageProductDependencies = (
+				217BF5652EA2D83F00010E2E /* Auth */,
+				217BF5672EA2D83F00010E2E /* Functions */,
+				217BF5692EA2D83F00010E2E /* PostgREST */,
+				217BF56B2EA2D83F00010E2E /* Realtime */,
+				217BF56D2EA2D83F00010E2E /* Storage */,
+				217BF56F2EA2DA5000010E2E /* Supabase */,
 			);
 			productName = Kinnect;
 			productReference = 217BF5132EA2A55000010E2E /* Kinnect.app */;
@@ -195,6 +224,9 @@
 			);
 			mainGroup = 217BF50A2EA2A55000010E2E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				217BF5642EA2D83F00010E2E /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 217BF5142EA2A55000010E2E /* Products */;
 			projectDirPath = "";
@@ -405,6 +437,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -413,12 +446,16 @@
 				PRODUCT_BUNDLE_IDENTIFIER = eg.Kinnect;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -437,6 +474,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -445,12 +483,16 @@
 				PRODUCT_BUNDLE_IDENTIFIER = eg.Kinnect;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -578,6 +620,50 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		217BF5642EA2D83F00010E2E /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		217BF5652EA2D83F00010E2E /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 217BF5642EA2D83F00010E2E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		217BF5672EA2D83F00010E2E /* Functions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 217BF5642EA2D83F00010E2E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Functions;
+		};
+		217BF5692EA2D83F00010E2E /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 217BF5642EA2D83F00010E2E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
+		};
+		217BF56B2EA2D83F00010E2E /* Realtime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 217BF5642EA2D83F00010E2E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Realtime;
+		};
+		217BF56D2EA2D83F00010E2E /* Storage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 217BF5642EA2D83F00010E2E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Storage;
+		};
+		217BF56F2EA2DA5000010E2E /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 217BF5642EA2D83F00010E2E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 217BF50B2EA2A55000010E2E /* Project object */;
 }
