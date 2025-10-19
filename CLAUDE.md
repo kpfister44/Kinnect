@@ -199,5 +199,75 @@ If a user opened Kinnect by accident, it should **look like Instagram** — but 
 
 ---
 
+## Supabase Backend Management
+
+### IMPORTANT: Using the Supabase MCP Server
+
+**For all Supabase backend interactions, you MUST use the Supabase MCP server tools.**
+
+The Supabase MCP server is configured and provides direct access to the Supabase backend via MCP tools. All database operations, migrations, storage management, and configuration should be done through these tools.
+
+### Available MCP Tools for Supabase:
+
+**Project Management:**
+- `mcp__supabase__list_projects` - List all Supabase projects
+- `mcp__supabase__get_project` - Get project details
+- `mcp__supabase__get_project_url` - Get API URL
+- `mcp__supabase__get_anon_key` - Get anonymous API key
+
+**Database Operations:**
+- `mcp__supabase__list_tables` - List all tables in schemas
+- `mcp__supabase__apply_migration` - Apply database migrations (DDL operations)
+- `mcp__supabase__execute_sql` - Execute raw SQL queries
+- `mcp__supabase__list_migrations` - List all migrations
+
+**TypeScript Type Generation:**
+- `mcp__supabase__generate_typescript_types` - Generate TypeScript types from schema
+
+**Monitoring & Debugging:**
+- `mcp__supabase__get_logs` - Get service logs (api, postgres, auth, storage, etc.)
+- `mcp__supabase__get_advisors` - Get security and performance recommendations
+
+**Edge Functions:**
+- `mcp__supabase__list_edge_functions` - List all Edge Functions
+- `mcp__supabase__get_edge_function` - Get Edge Function code
+- `mcp__supabase__deploy_edge_function` - Deploy Edge Function
+
+### Backend Setup Status
+
+The Supabase backend is **fully configured and operational**:
+
+✅ **Project:** Active Supabase project (`qfoyodqiltnpcikhpbdi`)
+✅ **Database:** 5 tables with Row-Level Security enabled
+  - `profiles` - User profile information
+  - `follows` - Following relationships
+  - `posts` - Photo/video posts
+  - `likes` - Post likes
+  - `comments` - Post comments
+
+✅ **Storage:** 2 private buckets configured
+  - `avatars` - Profile pictures (2MB limit, images only)
+  - `posts` - Media content (50MB limit, images & videos)
+
+✅ **Security:** Complete RLS policies implemented
+✅ **iOS SDK:** Supabase Swift SDK v2.36.0 installed
+✅ **Configuration:** `Secrets.plist` contains API credentials
+
+### Project ID
+
+The active Supabase project ID is: **`qfoyodqiltnpcikhpbdi`**
+
+Use this project ID when calling Supabase MCP tools.
+
+### Guidelines for Backend Changes
+
+1. **Always use MCP tools** - Never manually edit the Supabase dashboard when automation is available
+2. **Use migrations for schema changes** - Apply all DDL changes via `mcp__supabase__apply_migration`
+3. **Test with advisors** - Run `mcp__supabase__get_advisors` after schema changes to check for security issues
+4. **Monitor logs** - Use `mcp__supabase__get_logs` to debug backend issues
+5. **Document changes** - Update PLAN.md when backend features are added
+
+---
+
 
 **Built with Swift, SwiftUI, and Supabase.**
