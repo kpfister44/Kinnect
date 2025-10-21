@@ -577,17 +577,135 @@ All Supabase operations are managed via the **Supabase MCP server** (see CLAUDE.
 
 ---
 
-### 🚀 Next: Phase 3 – Profile System
+### ✅ Phase 3: Profile System – COMPLETE
+
+**Completed:** October 21, 2025
+
+**What We Built:**
+
+#### Database Changes
+- ✅ Added `bio` field to `profiles` table via migration
+
+#### Backend Layer
+- ✅ **ProfileService.swift** - Complete service with:
+  - `fetchProfile(userId:)` - Get profile data
+  - `updateProfile(...)` - Update username, full name, bio, avatar
+  - `uploadAvatar(image:userId:)` - Upload to Supabase Storage with compression
+  - `getProfileStats(userId:)` - Fetch posts/followers/following counts
+
+#### ViewModel Layer
+- ✅ **ProfileViewModel.swift** - State management with:
+  - Profile loading with parallel stats fetching
+  - Profile updates with error handling
+  - Avatar upload with compression
+  - Stats refresh functionality
+
+#### View Layer
+- ✅ **ProfileHeaderView.swift** - Instagram-style header with:
+  - Circular avatar with AsyncImage loading
+  - Posts/Followers/Following stats
+  - Username, full name, and bio display
+  - Edit Profile button (for current user)
+  - Follow button placeholder (disabled for Phase 3)
+
+- ✅ **ProfilePostsGridView.swift** - Posts grid with:
+  - 3-column Instagram-style grid layout
+  - Empty state with camera icon and message
+  - Placeholder cells for posts (will be populated in Phase 6)
+
+- ✅ **ProfileView.swift** - Main profile screen with:
+  - Loading, error, and success states
+  - Pull-to-refresh
+  - Settings menu with logout
+  - Sheet presentation for EditProfileView
+
+- ✅ **EditProfileView.swift** - Edit profile form with:
+  - Photo picker integration for avatar upload
+  - Username field with validation
+  - Full name field
+  - Bio field (150 character limit)
+  - Real-time change detection
+  - Save/Cancel functionality
+
+#### Key Features Implemented
+- **Full avatar upload flow** to Supabase Storage (`avatars` bucket)
+- **Image compression** (2MB limit, JPEG format with quality adjustment)
+- **Real-time validation** for username
+- **Instagram-style UI** throughout
+- **Error handling** with user-friendly messages
+- **Follow button** (UI only - will be functional in Phase 8)
+- **Cache-busting** for avatar URLs to prevent image caching issues
+
+#### Important Learnings - Supabase Storage & RLS
+
+**Storage File Organization:**
+Files should be stored in user-specific folders:
+- ✅ **Correct**: `{userId}/{fileName}.jpg` (e.g., `abc123/abc123.jpg`)
+- ❌ **Incorrect**: `{fileName}.jpg` at root
+
+**RLS Policy Patterns for Storage:**
+
+For a private app with authenticated users only, use this simple pattern:
+```sql
+-- INSERT: Allow authenticated users to upload to bucket
+CREATE POLICY "Authenticated users can upload"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (bucket_id = 'avatars');
+
+-- UPDATE/DELETE: Only file owners can modify
+CREATE POLICY "Users can update their own files"
+ON storage.objects FOR UPDATE TO authenticated
+USING (bucket_id = 'avatars' AND owner = auth.uid());
+```
+
+**Why folder-based restrictions failed:**
+- `storage.foldername(name)` and regex-based checks had issues with UUID string matching
+- The `owner` field (set automatically by Supabase) is more reliable for UPDATE/DELETE
+- For INSERT, trusting authenticated users + app-level folder organization works well
+
+**Cache-Busting for Images:**
+When using the same filename (e.g., `userId.jpg`), add a timestamp to force cache refresh:
+```swift
+let cacheBustedURL = publicURL.absoluteString + "?t=\(Int(Date().timeIntervalSince1970))"
+```
+
+**Date Decoding Fix:**
+Supabase returns dates as ISO 8601 strings. Configure JSONDecoder:
+```swift
+let decoder = JSONDecoder()
+decoder.dateDecodingStrategy = .iso8601
+```
+
+**Supabase SDK API Changes:**
+- ❌ Old: `client.database.from("table")`
+- ✅ New: `client.from("table")`
+
+#### Testing Results
+- ✅ Profile loading works perfectly
+- ✅ Edit profile updates username, full name, and bio
+- ✅ Avatar upload with compression (handles images > 2MB)
+- ✅ Avatar updates immediately (cache-busting working)
+- ✅ Stats display correctly (0 posts, 0 followers, 0 following)
+- ✅ Pull-to-refresh works
+- ✅ Logout functionality works
+- ✅ Username validation prevents invalid characters
+- ✅ All views match Instagram design language
+
+**Phase 3 Status: ✅ COMPLETE**
+
+---
+
+### 🚀 Next: Phase 4 – Feed UI Foundation
 
 **What We'll Build:**
-- Profile model and ProfileService for CRUD operations
-- Complete ProfileView with avatar, username, stats, posts grid
-- Edit profile screen with avatar upload
-- Follow/Unfollow functionality
-- ProfileViewModel for state management
+- Bottom tab bar navigation (5 tabs)
+- Empty feed state
+- Instagram-style post cell design
+- Pull-to-refresh placeholder
+- Navigation structure
 
 **Prerequisites:**
-- ✅ Phase 2: Authentication Flow complete
-- ✅ Backend profiles table and storage bucket ready
+- ✅ Phase 3: Profile System complete
+- ✅ Tab bar already exists from Phase 2
 
-**Status:** Ready to start after Phase 2 testing and refinement!
+**Status:** Ready to start!

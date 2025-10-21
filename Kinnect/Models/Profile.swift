@@ -12,6 +12,7 @@ struct Profile: Codable, Identifiable, Equatable {
     let username: String
     var avatarUrl: String?
     var fullName: String?
+    var bio: String?
     let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
@@ -19,6 +20,7 @@ struct Profile: Codable, Identifiable, Equatable {
         case username
         case avatarUrl = "avatar_url"
         case fullName = "full_name"
+        case bio
         case createdAt = "created_at"
     }
 }
