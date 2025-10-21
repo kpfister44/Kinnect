@@ -61,14 +61,25 @@ final class AuthService {
             return false
         }
 
-        let response: PostgrestResponse<Profile> = try await client
-            .from("profiles")
-            .select()
-            .eq("user_id", value: userId)
-            .single()
-            .execute()
+        // Fetch profiles as array to avoid error when no profile exists
+        do {
+            let response: PostgrestResponse<[Profile]> = try await client
+                .from("profiles")
+                .select()
+                .eq("user_id", value: userId)
+                .execute()
 
-        return response.value.username.isEmpty == false
+            // If no profile exists, return false
+            guard let profile = response.value.first else {
+                return false
+            }
+
+            // Check if username is set
+            return !profile.username.isEmpty
+        } catch {
+            // If any error occurs (including no profile found), return false
+            return false
+        }
     }
 
     /// Create initial profile for new user
