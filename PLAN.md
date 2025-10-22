@@ -695,17 +695,100 @@ decoder.dateDecodingStrategy = .iso8601
 
 ---
 
-### 🚀 Next: Phase 4 – Feed UI Foundation
+### ✅ Phase 4: Feed UI Foundation – COMPLETE
+
+**Completed:** October 22, 2025
+
+**What We Built:**
+
+#### Components Created
+
+**PostCellView.swift** - Instagram-style post cell with:
+- ✅ Header section: circular avatar, username, three-dot menu
+- ✅ Square 1:1 aspect ratio image container
+- ✅ Action buttons: like, comment, share, bookmark (Instagram layout)
+- ✅ Like count display
+- ✅ Caption with username (bold) + text that wraps naturally (Instagram style)
+- ✅ Caption truncation at ~100 characters with "more" button
+- ✅ "View all X comments" link (when comments exist)
+- ✅ Relative timestamp (e.g., "2H AGO")
+- ✅ Interactive like button (toggles red, updates count)
+- ✅ Expandable captions on tap
+
+**FeedView.swift** - Main feed screen with:
+- ✅ Scrollable feed using LazyVStack for performance
+- ✅ Empty state: "No posts yet. Follow people to see their posts"
+- ✅ Mock data with 2 sample posts for UI preview
+- ✅ Smooth scrolling with hidden scroll indicators
+- ✅ Dividers between posts
+- ✅ Loads mock data on appear
+
+**Post.swift Model Updates:**
+- ✅ Custom initializer for creating posts manually
+- ✅ Decodable initializer (`init(from decoder:)`) for Codable conformance
+- ✅ Mutable relationship properties (authorProfile, likeCount, commentCount, isLikedByCurrentUser)
+
+#### Key Design Decisions
+
+**No Pull-to-Refresh:**
+- Removed for small private network (5-20 users)
+- Feed loads fresh data on app launch/tab switch (Phase 6)
+- Real-time updates will auto-update feed in Phase 9
+- Simpler UX appropriate for intimate network
+
+**Caption Layout:**
+- Uses Text concatenation (not HStack) for natural text flow
+- Username (bold) + caption text wrap together like Instagram
+- "more" button for truncated captions expands on tap
+
+**Placeholder Images:**
+- Using external URLs (picsum.photos, pravatar.cc) for Phase 4 preview
+- Will be replaced with Supabase Storage signed URLs in Phase 6
+
+#### Testing Results
+- ✅ Feed displays 2 sample posts with realistic content
+- ✅ Images load correctly (avatars + post images)
+- ✅ Like button toggles and updates count optimistically
+- ✅ Caption expansion works on tap
+- ✅ All UI matches Instagram design language
+- ✅ Smooth scrolling performance
+- ✅ Empty state displays when no posts
+- ✅ All 5 tabs navigate correctly
+
+#### Important Learnings
+
+**Text Concatenation for Captions:**
+Using `+` operator to combine Text views creates natural wrapping:
+```swift
+Text(username).bold() + Text(" ") + Text(caption)
+```
+Better than HStack which keeps elements side-by-side.
+
+**LazyVStack for Performance:**
+- Only renders visible cells
+- Essential for large feeds in production
+- Enables smooth scrolling
+
+**Codable with Custom Initializers:**
+When adding custom `init()`, must manually implement `init(from decoder:)` to maintain Codable conformance.
+
+**Phase 4 Status: ✅ COMPLETE**
+
+---
+
+### 🚀 Next: Phase 5 – Upload & Media Handling
 
 **What We'll Build:**
-- Bottom tab bar navigation (5 tabs)
-- Empty feed state
-- Instagram-style post cell design
-- Pull-to-refresh placeholder
-- Navigation structure
+- Camera & photo picker integration
+- Image/video selection UI
+- Media upload to Supabase Storage
+- Caption entry screen
+- Post creation in database
+- Background upload with progress indicator
 
 **Prerequisites:**
-- ✅ Phase 3: Profile System complete
-- ✅ Tab bar already exists from Phase 2
+- ✅ Phase 4: Feed UI Foundation complete
+- ✅ Storage buckets configured (Phase 1b)
+- ✅ Posts table ready (Phase 1b)
 
 **Status:** Ready to start!
