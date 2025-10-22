@@ -37,8 +37,8 @@ struct RootView: View {
                 UsernameCreationView()
                     .transition(.opacity)
 
-            case .authenticated:
-                TabBarView()
+            case .authenticated(let userId):
+                TabBarView(currentUserId: userId)
                     .transition(.opacity)
             }
         }

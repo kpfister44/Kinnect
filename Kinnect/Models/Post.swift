@@ -20,6 +20,7 @@ struct Post: Codable, Identifiable, Equatable {
     var likeCount: Int
     var commentCount: Int
     var isLikedByCurrentUser: Bool
+    var mediaURL: URL? // Signed URL for media display
 
     // Custom initializer to set default values for relationship properties
     init(
@@ -32,7 +33,8 @@ struct Post: Codable, Identifiable, Equatable {
         authorProfile: Profile? = nil,
         likeCount: Int = 0,
         commentCount: Int = 0,
-        isLikedByCurrentUser: Bool = false
+        isLikedByCurrentUser: Bool = false,
+        mediaURL: URL? = nil
     ) {
         self.id = id
         self.author = author
@@ -44,6 +46,7 @@ struct Post: Codable, Identifiable, Equatable {
         self.likeCount = likeCount
         self.commentCount = commentCount
         self.isLikedByCurrentUser = isLikedByCurrentUser
+        self.mediaURL = mediaURL
     }
 
     // Decodable initializer (required because we have a custom init)
@@ -61,6 +64,7 @@ struct Post: Codable, Identifiable, Equatable {
         likeCount = 0
         commentCount = 0
         isLikedByCurrentUser = false
+        mediaURL = nil
     }
 
     enum MediaType: String, Codable {

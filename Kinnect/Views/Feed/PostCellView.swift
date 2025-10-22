@@ -9,8 +9,8 @@ import SwiftUI
 
 struct PostCellView: View {
     let post: Post
-    var onLikeTapped: (() -> Void)?
-    var onCommentTapped: (() -> Void)?
+    var mediaURL: URL? // Real Supabase URL
+    @EnvironmentObject var feedViewModel: FeedViewModel
 
     @State private var isExpanded = false
 
@@ -30,128 +30,9 @@ struct PostCellView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // MARK: - Header (Avatar + Username + Menu)
-            HStack(spacing: 12) {
-                // Avatar
-                if let avatarUrl = post.authorProfile?.avatarUrl {
-                    AsyncImage(url: URL(string: avatarUrl)) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Circle()
-                            .fill(Color.igSeparator)
-                    }
-                    .frame(width: 32, height: 32)
-                    .clipShape(Circle())
-                } else {
-                    Circle()
-                        .fill(Color.igSeparator)
-                        .frame(width: 32, height: 32)
-                        .overlay(
-                            Image(systemName: "person.fill")
-                                .font(.system(size: 14))
-                                .foregroundColor(.igTextSecondary)
-                        )
-                }
-
-                // Username
-                Text(post.authorProfile?.username ?? "Unknown")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.igTextPrimary)
-
-                Spacer()
-
-                // Three-dot menu
-                Button {
-                    // TODO: Show post options menu
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.igTextPrimary)
-                        .frame(width: 44, height: 44)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-
-            // MARK: - Image (Square 1:1 ratio)
-            GeometryReader { geometry in
-                if let imageUrl = mockImageUrl(for: post.mediaKey) {
-                    AsyncImage(url: URL(string: imageUrl)) { phase in
-                        switch phase {
-                        case .empty:
-                            Rectangle()
-                                .fill(Color.igSeparator)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: geometry.size.width, height: geometry.size.width)
-                                .clipped()
-                        case .failure:
-                            Rectangle()
-                                .fill(Color.igSeparator)
-                                .overlay(
-                                    Image(systemName: "photo")
-                                        .foregroundColor(.igTextSecondary)
-                                )
-                        @unknown default:
-                            Rectangle()
-                                .fill(Color.igSeparator)
-                        }
-                    }
-                    .frame(width: geometry.size.width, height: geometry.size.width)
-                } else {
-                    Rectangle()
-                        .fill(Color.igSeparator)
-                        .frame(width: geometry.size.width, height: geometry.size.width)
-                }
-            }
-            .aspectRatio(1, contentMode: .fit)
-
-            // MARK: - Action Buttons (Like, Comment, Share, Bookmark)
-            HStack(spacing: 16) {
-                // Like button
-                Button {
-                    onLikeTapped?()
-                } label: {
-                    Image(systemName: post.isLikedByCurrentUser ? "heart.fill" : "heart")
-                        .font(.system(size: 24))
-                        .foregroundColor(post.isLikedByCurrentUser ? .igRed : .igTextPrimary)
-                }
-
-                // Comment button
-                Button {
-                    onCommentTapped?()
-                } label: {
-                    Image(systemName: "bubble.right")
-                        .font(.system(size: 24))
-                        .foregroundColor(.igTextPrimary)
-                }
-
-                // Share button
-                Button {
-                    // TODO: Share functionality
-                } label: {
-                    Image(systemName: "paperplane")
-                        .font(.system(size: 24))
-                        .foregroundColor(.igTextPrimary)
-                }
-
-                Spacer()
-
-                // Bookmark button
-                Button {
-                    // TODO: Bookmark functionality
-                } label: {
-                    Image(systemName: "bookmark")
-                        .font(.system(size: 24))
-                        .foregroundColor(.igTextPrimary)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            headerView
+            imageView
+            actionButtonsView
 
             // MARK: - Like Count
             if post.likeCount > 0 {
@@ -164,41 +45,21 @@ struct PostCellView: View {
 
             // MARK: - Caption
             if let caption = post.caption, !caption.isEmpty {
-                (
-                    Text(post.authorProfile?.username ?? "Unknown")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.igTextPrimary)
-                    +
-                    Text(" ")
-                        .font(.system(size: 14))
-                    +
-                    Text(displayCaption)
-                        .font(.system(size: 14))
-                        .foregroundColor(.igTextPrimary)
-                    +
-                    (shouldTruncate && !isExpanded ?
-                     Text("... ")
-                        .font(.system(size: 14))
-                        .foregroundColor(.igTextSecondary)
-                     +
-                     Text("more")
-                        .font(.system(size: 14))
-                        .foregroundColor(.igTextSecondary)
-                     : Text(""))
+                CaptionView(
+                    username: post.authorProfile?.username ?? "Unknown",
+                    caption: displayCaption,
+                    shouldShowMore: shouldTruncate && !isExpanded,
+                    isExpanded: $isExpanded,
+                    shouldTruncate: shouldTruncate
                 )
                 .padding(.horizontal, 12)
                 .padding(.bottom, 4)
-                .onTapGesture {
-                    if shouldTruncate {
-                        isExpanded.toggle()
-                    }
-                }
             }
 
             // MARK: - View Comments (if comments exist)
             if post.commentCount > 0 {
                 Button {
-                    onCommentTapped?()
+                    feedViewModel.openComments(forPostID: post.id)
                 } label: {
                     Text("View all \(post.commentCount) comments")
                         .font(.system(size: 14))
@@ -219,11 +80,169 @@ struct PostCellView: View {
         .background(Color.igBackground)
     }
 
-    // MARK: - Helper: Mock image URL (will be replaced with real Supabase URLs later)
-    private func mockImageUrl(for mediaKey: String) -> String? {
-        // For Phase 4, return placeholder image URLs
-        // In Phase 6, this will fetch signed URLs from Supabase Storage
-        return "https://picsum.photos/600/600?random=\(mediaKey.hashValue)"
+    // MARK: - View Components
+
+    private var imageView: some View {
+        AsyncImage(url: mediaURL) { phase in
+            switch phase {
+            case .empty:
+                Rectangle()
+                    .fill(Color.igSeparator)
+                    .overlay(ProgressView().tint(.igTextSecondary))
+                    .aspectRatio(1, contentMode: .fit)
+            case .success(let image):
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(1, contentMode: .fit)
+                    .clipped()
+            case .failure:
+                Rectangle()
+                    .fill(Color.igSeparator)
+                    .overlay(
+                        VStack(spacing: 8) {
+                            Image(systemName: "photo")
+                                .font(.system(size: 40))
+                                .foregroundColor(.igTextSecondary)
+                            Text("Failed to load")
+                                .font(.system(size: 12))
+                                .foregroundColor(.igTextSecondary)
+                        }
+                    )
+                    .aspectRatio(1, contentMode: .fit)
+            @unknown default:
+                Rectangle()
+                    .fill(Color.igSeparator)
+                    .aspectRatio(1, contentMode: .fit)
+            }
+        }
+    }
+
+    private var actionButtonsView: some View {
+        HStack(spacing: 16) {
+            Button {
+                feedViewModel.toggleLike(forPostID: post.id)
+            } label: {
+                Image(systemName: post.isLikedByCurrentUser ? "heart.fill" : "heart")
+                    .font(.system(size: 24))
+                    .foregroundColor(post.isLikedByCurrentUser ? .igRed : .igTextPrimary)
+            }
+
+            Button {
+                feedViewModel.openComments(forPostID: post.id)
+            } label: {
+                Image(systemName: "bubble.right")
+                    .font(.system(size: 24))
+                    .foregroundColor(.igTextPrimary)
+            }
+
+            Button {
+                // TODO: Share action
+            } label: {
+                Image(systemName: "paperplane")
+                    .font(.system(size: 24))
+                    .foregroundColor(.igTextPrimary)
+            }
+
+            Spacer()
+
+            Button {
+                // TODO: Bookmark action
+            } label: {
+                Image(systemName: "bookmark")
+                    .font(.system(size: 24))
+                    .foregroundColor(.igTextPrimary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private var headerView: some View {
+        HStack(spacing: 12) {
+            // Avatar
+            if let avatarUrl = post.authorProfile?.avatarUrl {
+                AsyncImage(url: URL(string: avatarUrl)) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Circle()
+                        .fill(Color.igSeparator)
+                }
+                .frame(width: 32, height: 32)
+                .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(Color.igSeparator)
+                    .frame(width: 32, height: 32)
+                    .overlay(
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.igTextSecondary)
+                    )
+            }
+
+            // Username
+            Text(post.authorProfile?.username ?? "Unknown")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.igTextPrimary)
+
+            Spacer()
+
+            // Three-dot menu
+            Button {
+                // TODO: Show post options menu
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.igTextPrimary)
+                    .frame(width: 44, height: 44)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Caption View Component
+struct CaptionView: View {
+    let username: String
+    let caption: String
+    let shouldShowMore: Bool
+    @Binding var isExpanded: Bool
+    let shouldTruncate: Bool
+
+    var body: some View {
+        Group {
+            Text(username)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.igTextPrimary)
+            +
+            Text(" ")
+                .font(.system(size: 14))
+            +
+            Text(caption)
+                .font(.system(size: 14))
+                .foregroundColor(.igTextPrimary)
+            +
+            (shouldShowMore ? moreText : Text(""))
+        }
+        .onTapGesture {
+            if shouldTruncate {
+                isExpanded.toggle()
+            }
+        }
+    }
+
+    private var moreText: Text {
+        Text("... ")
+            .font(.system(size: 14))
+            .foregroundColor(.igTextSecondary)
+        +
+        Text("more")
+            .font(.system(size: 14))
+            .foregroundColor(.igTextSecondary)
     }
 }
 
@@ -249,8 +268,10 @@ struct PostCellView: View {
                 likeCount: 42,
                 commentCount: 8,
                 isLikedByCurrentUser: false
-            )
+            ),
+            mediaURL: URL(string: "https://picsum.photos/600/600")
         )
+        .environmentObject(FeedViewModel(currentUserId: UUID()))
 
         Divider()
 
@@ -273,7 +294,9 @@ struct PostCellView: View {
                 likeCount: 15,
                 commentCount: 0,
                 isLikedByCurrentUser: true
-            )
+            ),
+            mediaURL: URL(string: "https://picsum.photos/600/600?random=2")
         )
+        .environmentObject(FeedViewModel(currentUserId: UUID()))
     }
 }

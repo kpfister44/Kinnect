@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct TabBarView: View {
+    let currentUserId: UUID
     @State private var selectedTab: Tab = .feed
 
     enum Tab {
@@ -21,7 +22,7 @@ struct TabBarView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             // Feed Tab
-            FeedView()
+            FeedView(currentUserId: currentUserId)
                 .tabItem {
                     Image(systemName: selectedTab == .feed ? "house.fill" : "house")
                     Text("Feed")
@@ -65,5 +66,6 @@ struct TabBarView: View {
 }
 
 #Preview {
-    TabBarView()
+    TabBarView(currentUserId: UUID())
+        .environmentObject(AuthViewModel())
 }

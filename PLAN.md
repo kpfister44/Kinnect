@@ -1000,27 +1000,229 @@ Created `JSONDecoder+Supabase.swift` extension to handle Supabase's ISO8601 date
 
 ---
 
-### 🚀 Next: Phase 6 – Feed Data Integration & Video Support
+### ✅ Phase 6 Part A: Feed Data Integration – COMPLETE
 
-**What We'll Build:**
+**Completed:** October 22, 2025
 
-**Part A: Feed Data (Replace Mock with Real)**
-- FeedService with Supabase queries
-- Fetch posts from followed users
-- Signed URLs for images
-- Pagination (infinite scroll)
-- Replace Phase 4 mock data
+**What We Built:**
 
-**Part B: Video Support**
+✅ **FeedService.swift** - Complete feed fetching with:
+- Fetches all posts (not just followed users - will implement follows in Phase 8)
+- Generates signed URLs for images (1 hour expiry)
+- Fetches like counts, comment counts, and like status
+- Pagination support (20 posts per page)
+- Embedded author profiles via Supabase joins
+
+✅ **FeedViewModel.swift** - State management with:
+- Loading states (idle, loading, loaded, error)
+- `loadFeed()` - Fetches fresh data
+- `loadMorePostsIfNeeded()` - Infinite scroll pagination
+- `toggleLike()` - Optimistic UI updates (Phase 7 will add API calls)
+
+✅ **FeedView.swift** - Updated feed UI:
+- Loading spinner, error view with retry, empty state
+- Replaced mock data with real Supabase posts
+- Displays real images using signed URLs
+- ForEach with explicit ID tracking
+
+✅ **PostCellView.swift** - Real image display:
+- AsyncImage with signed URLs
+- Loading and error states for images
+- All UI working correctly
+
+✅ **Storage Policy Fix:**
+- Changed `posts` bucket SELECT policy to allow all authenticated users
+- Switched from `getPublicURL()` to `createSignedURL()` for private bucket
+
+✅ **Post Model Updates:**
+- Added `mediaURL` property for pre-fetched signed URLs
+
+**Testing Results:**
+- ✅ Feed loads real posts from Supabase
+- ✅ Images display correctly using signed URLs
+- ✅ Pagination ready (loads 20 posts, can load more on scroll)
+- ✅ Posts ordered by most recent first
+- ✅ Author profiles display with avatars
+- ✅ Like button works on all posts (Bug #1 fixed - GeometryReader removed)
+- ✅ Caption display works correctly (Bug #2 fixed - CaptionView extracted)
+
+**Phase 6 Part A Status: ✅ COMPLETE - All bugs resolved, feed fully functional**
+
+---
+
+### ✅ Bug Fixes - Phase 6 Part A (October 22, 2025)
+
+#### Issue #1: Like Button Not Working on Specific Posts - ✅ FIXED
+
+**Symptom:**
+- ~1 out of every 5-7 posts has a non-functional like button
+- Tap gesture does not fire at all (no console logs, no SwiftUI hit detection)
+- Other posts' like buttons work perfectly
+- Issue persists across app restarts
+- **CRITICAL**: Posts created with NEW code still exhibit the bug (not related to old code state)
+
+**Patterns Discovered:**
+- **NOT position-based** - When a problematic post is deleted, the issue moves to a different post
+- **NOT data-based** - Problematic posts have identical data structure to working posts (verified in Supabase)
+- **NOT code-based** - New posts created after code refactor still show the bug
+- **Affects random posts** - Appears to be ~20% of posts
+- **SwiftUI hit-testing failure** - Tap doesn't register at all (confirmed via debug logs)
+
+---
+
+**DEBUGGING ITERATIONS:**
+
+**Iteration #1-7: Closure Capture Hypothesis (October 22, 2025)**
+*Theory: SwiftUI's ForEach wasn't properly capturing closures for certain posts*
+
+What we tried:
+1. ✅ Explicit ForEach ID tracking with `id: \.id` - NO CHANGE
+2. ✅ Adding `.id(post.id)` to PostCellView - NO CHANGE
+3. ✅ Capturing UUID instead of Post object in closures - NO CHANGE
+4. ✅ Switching from `Button` to `.onTapGesture` - NO CHANGE
+5. ✅ Making closures required (`let`) instead of optional (`var`) - NO CHANGE
+6. ✅ Using VStack instead of LazyVStack - NO CHANGE
+7. ✅ Adding unique IDs to each button - NO CHANGE
+8. ❌ Breaking body into computed properties - Caused Swift compiler "type-check" errors
+
+**Result:** ❌ Closures were NOT the root cause
+
+---
+
+**Iteration #8: Caption Type-Check Error Fix (October 22, 2025)**
+*Fix Bug #2 which was blocking further investigation of Bug #1*
+
+What we did:
+- Extracted complex caption Text concatenation into separate `CaptionView` struct
+- Simplified ternary operators in caption display logic
+
+**Result:** ✅ Type-check error FIXED, but like button bug persists
+
+---
+
+**Iteration #9: EnvironmentObject Refactor (October 22, 2025)**
+*Theory: Eliminate closures entirely by passing ViewModel directly*
+
+What we did:
+- Changed PostCellView to accept `@EnvironmentObject var feedViewModel: FeedViewModel`
+- Removed all closure parameters (`onLikeTapped`, `onCommentTapped`)
+- Like button now directly calls `feedViewModel.toggleLike(forPostID: post.id)`
+- Updated FeedView to pass `.environmentObject(viewModel)` to each cell
+
+**Test Results:**
+- ✅ Code compiles and builds successfully
+- ✅ All NEW posts (created after refactor) have working like buttons
+- ❌ The existing problematic post STILL has broken like button
+- ❌ Debug logs confirm tap is NOT firing (SwiftUI hit-testing failure)
+
+**Critical Discovery:** The bug is NOT related to old code state. Posts created with the new EnvironmentObject pattern still randomly exhibit the bug.
+
+**Current Theory:** This is a **SwiftUI hit-testing/layout bug** where certain PostCellView instances have their like button's tap target obscured or incorrectly calculated. The issue is likely in the view hierarchy or layout constraints.
+
+---
+
+**Iteration #10: Explicit Hit-Testing with contentShape (October 22, 2025)**
+*Theory: SwiftUI's hit-testing needs explicit frame and content shape*
+
+What we did:
+- Added `.frame(width: 44, height: 44)` to all action buttons (Apple's recommended minimum tap target)
+- Added `.contentShape(Rectangle())` to make entire frame tappable
+- Added `.allowsHitTesting(true)` to like button explicitly
+
+**Test Results:**
+- ✅ Code compiles and builds successfully
+- ❌ Problematic post's like button STILL doesn't work
+- ❌ No debug logs appear (tap still not firing)
+
+**Result:** ❌ Explicit content shapes did NOT fix the issue. Reverted for better styling.
+
+**Discovery:** The issue is NOT related to tap target size or content shape definition.
+
+---
+
+**Iteration #11: Replace Image+onTapGesture with Button (October 22, 2025)**
+*Theory: Button has more reliable hit-testing than gesture modifiers*
+
+What we did:
+- Replaced all `Image` + `.onTapGesture` with proper SwiftUI `Button` views
+- Like button: `Button { action } label: { Image(...) }`
+- Applied to all action buttons (like, comment, share, bookmark)
+
+**Test Results:**
+- ✅ Code compiles and builds successfully
+- ✅ Better code structure (kept for cleaner implementation)
+- ❌ Problematic post's like button STILL doesn't work
+- ❌ No debug logs appear (tap still not firing)
+
+**Result:** ❌ Button vs Image+gesture does NOT affect the bug. **Keeping Button implementation for better code quality.**
+
+**Discovery:** The issue is NOT related to tap gesture vs Button implementation.
+
+---
+
+**Iteration #12: Remove GeometryReader from imageView (October 22, 2025)** ✅ **BUG FIXED!**
+*Theory: GeometryReader is causing hit-testing issues by expanding unpredictably*
+
+What we did:
+- **Removed GeometryReader entirely** from imageView
+- Replaced with direct `.aspectRatio(1, contentMode: .fit)` on each AsyncImage phase
+- Simplified layout calculation - no more dynamic geometry measurements
+
+**Test Results:**
+- ✅ Code compiles and builds successfully
+- ✅✅✅ **ALL posts' like buttons now work perfectly!**
+- ✅ Previously problematic post's like button now works
+- ✅ All new posts work correctly
+- ✅ Debug logs confirm taps are firing properly
+
+**Result:** ✅✅✅ **BUG COMPLETELY FIXED!**
+
+**ROOT CAUSE DISCOVERED:**
+GeometryReader in the imageView was expanding and overlapping the action buttons area in ~20% of posts (likely due to timing issues with AsyncImage loading and layout calculation). This blocked hit-testing for the like button in those specific cells. Removing GeometryReader and using SwiftUI's native `.aspectRatio()` modifier resolved the layout overlap issue.
+
+**Key Learnings:**
+1. **GeometryReader can interfere with hit-testing** - It expands to fill available space in unpredictable ways
+2. **AsyncImage + GeometryReader = potential layout issues** - The combination can cause timing-based layout bugs
+3. **SwiftUI's native modifiers are more reliable** - `.aspectRatio()` is safer than manual geometry calculations
+4. **Hit-testing failures manifest as random bugs** - The 20% failure rate was due to race conditions in layout calculation
+
+**Final Solution:**
+- Use `.aspectRatio(1, contentMode: .fit)` directly on AsyncImage phases
+- Avoid GeometryReader for simple layout tasks
+- Keep Button implementation (cleaner than Image + gesture)
+
+**Files Involved:**
+- `/Kinnect/Views/Feed/FeedView.swift` - ForEach and cell rendering
+- `/Kinnect/Views/Feed/PostCellView.swift` - actionButtonsView (lines 121-151)
+- `/Kinnect/ViewModels/FeedViewModel.swift` - toggleLike method
+
+---
+
+#### Issue #2: Swift Compiler "Type-Check" Error - ✅ FIXED
+
+**Solution:** Extracted complex caption Text concatenation into separate `CaptionView` struct
+
+**What We Did:**
+- Created new `CaptionView` struct with simpler computed properties
+- Broke down nested ternary operators
+- Replaced inline Text concatenation with clean component
+
+**Result:** ✅ Type-check error completely resolved
+
+---
+
+### 🚀 Next: Fix Known Issues, Then Phase 6 Part B
+
+**Before moving to Part B (Video Support), need to:**
+1. Resolve Swift compiler type-check error in PostCellView
+2. Fix like button closure capture bug
+3. Test feed thoroughly with multiple posts
+
+**Part B: Video Support** (Pending)
 - Video upload with PHPicker
-- Video compression
-- Thumbnail generation
+- Client-side video compression
+- Thumbnail generation on device
 - AVPlayer for playback
-- Play/pause controls
+- Manual play/pause controls (not auto-play)
 
-**Prerequisites:**
-- ✅ Phase 5: Photo Upload complete
-- ✅ Phase 4: Feed UI ready
-- ✅ Storage & database configured
-
-**Status:** Ready to start after Phase 5 device testing!
+---

@@ -287,5 +287,22 @@ Use this project ID when calling Supabase MCP tools.
 
 ---
 
+### Like Button Not Working on Random Posts (GeometryReader Hit-Testing Issue)
+
+**Symptom:** Approximately 20% of posts have non-functional like buttons. Taps don't register at all (no console logs, no visual feedback). Other posts work perfectly. Issue persists across app restarts and affects random posts regardless of data or position.
+
+**Root Cause:** GeometryReader in `imageView` was expanding unpredictably and overlapping the action buttons area below it. This blocked SwiftUI's hit-testing for the like button in certain cells, likely due to timing issues with AsyncImage loading and layout calculation creating a race condition.
+
+**Solution:**
+1. Remove GeometryReader from imageView completely
+2. Use `.aspectRatio(1, contentMode: .fit)` directly on each AsyncImage phase instead
+3. Let SwiftUI handle layout natively without manual geometry calculations
+
+**Key Insight:** GeometryReader + AsyncImage can cause timing-based layout bugs where the reader expands to fill space before the image loads, causing overlap issues. SwiftUI's native `.aspectRatio()` modifier is more reliable for simple square aspect ratio constraints.
+
+**Location:** `PostCellView.swift` - `imageView` computed property
+
+---
+
 
 **Built with Swift, SwiftUI, and Supabase.**
