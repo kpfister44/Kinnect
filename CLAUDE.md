@@ -269,5 +269,23 @@ Use this project ID when calling Supabase MCP tools.
 
 ---
 
+## Common Issues & Solutions
+
+### PhotosPicker Sheet Presentation Race Condition
+
+**Symptom:** First photo upload after app launch fails - PhotosPicker dismisses but NewPostView sheet doesn't present. UI "zooms out" briefly. Works correctly on subsequent attempts.
+
+**Root Cause:** The `onChange` handler fires multiple times on first launch, causing a race condition between PhotosPicker dismissal and sheet presentation.
+
+**Solution:**
+1. Add `isProcessingImage` flag to prevent duplicate processing
+2. Add guard clauses with proper early returns
+3. Use explicit `MainActor.run` for all state updates
+4. Add 0.5 second delay to ensure PhotosPicker fully dismisses before presenting sheet
+
+**Location:** `UploadView.swift` - `.onChange(of: selectedItem)` handler
+
+---
+
 
 **Built with Swift, SwiftUI, and Supabase.**

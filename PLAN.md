@@ -183,67 +183,101 @@ comments (
 
 ---
 
-## Phase 5: Upload & Media Handling
-**Goal:** Users can capture and upload photos/videos
+## Phase 5: Photo Upload & Post Creation
+**Goal:** Users can select photos and create posts (photos only - videos in Phase 6)
 
 ### Tasks:
-1. **Camera & Photo Picker**
-   - Access camera and photo library
-   - Handle permissions
-   - Image/video selection UI (Instagram-style)
+1. **Photo Picker Integration**
+   - Use native PHPickerViewController for photo selection
+   - Handle photo library permissions
+   - Single photo selection (no multi-select yet)
 
-2. **Image Compression Edge Function**
-   - Deploy Supabase Edge Function for server-side image compression
-   - Generate optimized versions (thumbnail, full-size)
-   - Return storage paths
+2. **Image Compression**
+   - Client-side image resize (max 1200x1200px)
+   - JPEG compression to stay under storage limits
+   - Maintain aspect ratio
+   - Compression utility functions
 
-3. **Media Upload Flow**
-   - Capture/select photo or video
-   - Add caption screen
-   - Background upload to Supabase Storage
-   - Progress indicator
-   - Error handling
+3. **Caption Entry Screen**
+   - New view: `NewPostView.swift`
+   - Display selected photo preview
+   - Text field for caption entry
+   - Character limit (optional, 2,200 like Instagram)
+   - Cancel and Share buttons
 
-4. **UploadViewModel**
-   - Manage upload state
-   - Use `URLSession` background tasks
-   - Create post record after successful upload
-   - Handle retries on failure
+4. **PostService**
+   - `uploadPhoto(image:userId:)` - Upload to Supabase Storage
+   - `createPost(caption:mediaKey:userId:)` - Create post record
+   - File naming: `{userId}/{postId}.jpg` in `posts` bucket
+   - Error handling with retry logic
 
-5. **Post Creation**
-   - Save post metadata to `posts` table
-   - Link to uploaded media via `media_key`
+5. **UploadViewModel**
+   - Manage upload flow state (idle, uploading, success, error)
+   - Coordinate image upload → post creation sequence
+   - Show progress indicator during upload
+   - Handle errors gracefully with user feedback
 
-**Deliverable:** Users can capture/select photos, add captions, and upload posts to Supabase
+6. **Update UploadView**
+   - Replace placeholder with photo picker button
+   - Present NewPostView after photo selection
+   - Instagram-style camera/library selection
+
+**Key Design Decisions:**
+- **No Edge Function needed:** Supabase has built-in image transformation
+- **Upload flow:** Select photo → Add caption → Upload image → Create post record
+- **Simple progress:** Spinner with "Posting..." message (no background uploads yet)
+- **Supabase Image Transformation:** Use on-the-fly resizing when displaying in feed
+
+**Deliverable:** Users can select photos from library, add captions, and create posts. Posts appear in feed immediately after upload.
 
 ---
 
-## Phase 6: Feed Implementation
-**Goal:** Display posts from followed users
+## Phase 6: Feed Data Integration & Video Support
+**Goal:** Connect feed to real Supabase data and add video upload/playback
 
-### Tasks:
+### Part A: Feed Data (Phase 4 UI → Real Data)
 1. **FeedService**
-   - Fetch posts from followed users (SQL query with join)
+   - Fetch posts from followed users (SQL query with joins)
+   - Include author profile, like count, comment count
    - Paginated loading (initial 20 posts, load more on scroll)
-   - Fetch post metadata (author profile, like count, comments)
+   - Fetch signed URLs from Supabase Storage for images
 
 2. **FeedViewModel**
-   - Load and cache feed data
-   - Handle pull-to-refresh
-   - Pagination logic
-   - State management (loading, loaded, error)
+   - Replace mock data with real Supabase queries
+   - Load feed data on appear
+   - Pagination logic (infinite scroll)
+   - State management (loading, loaded, error, empty)
+   - Cache optimization
 
-3. **Post Display**
-   - Render posts using Post cell component
-   - Lazy image loading for photos
-   - Video player for video posts
-   - Signed URL fetching from Supabase Storage
+3. **Post Display Updates**
+   - Fetch and display real images using signed URLs
+   - Use Supabase image transformation for optimized delivery
+   - Handle image loading states and errors
+   - Update like counts from database
+   - Show real comment counts
 
-4. **Feed Interactivity**
-   - Scroll to top on tab re-tap
-   - Smooth scrolling performance
+### Part B: Video Support
+4. **Video Upload**
+   - Extend PHPicker to support video selection
+   - Video compression (client-side or Edge Function)
+   - Upload to `posts` bucket (50MB limit)
+   - Thumbnail generation for video preview
+   - File naming: `{userId}/{postId}.mp4`
 
-**Deliverable:** Users see a chronological feed of posts from people they follow
+5. **Video Playback**
+   - Add AVPlayer to PostCellView for video posts
+   - Play/pause controls
+   - Mute/unmute toggle
+   - Auto-play when scrolled into view (optional)
+   - Handle video loading states
+
+6. **Update PostCellView**
+   - Detect `media_type` (photo vs video)
+   - Show video player for video posts
+   - Show image for photo posts
+   - Video thumbnail with play button overlay
+
+**Deliverable:** Users see a real feed with posts from followed users, including both photos and videos with playback support
 
 ---
 
@@ -776,19 +810,217 @@ When adding custom `init()`, must manually implement `init(from decoder:)` to ma
 
 ---
 
-### 🚀 Next: Phase 5 – Upload & Media Handling
+### ✅ Phase 5: Photo Upload & Post Creation – IMPLEMENTATION COMPLETE
+
+**Completed:** October 22, 2025
+
+**What We Built:**
+
+#### Components Created
+
+**1. ImageCompression.swift** - Smart image compression utility:
+- Resizes images to max 1080x1080px (Instagram standard)
+- Maintains aspect ratio
+- Adaptive JPEG compression (target: 1MB, max: 2MB)
+- Iterative quality reduction to meet size requirements
+- File size formatting helper
+
+**2. PostService.swift** - Complete post management service:
+- `createPost(image:caption:userId:)` - Full upload orchestration
+- `uploadPhoto()` - Uploads to Supabase Storage `posts` bucket
+- `createPostRecord()` - Creates record in `posts` table
+- `getMediaURL()` - Fetches signed URLs for display
+- File organization: `{userId}/{postId}.jpg`
+- Comprehensive error handling with custom error types
+
+**3. NewPostView.swift** - Instagram-style caption entry:
+- Full-screen photo preview at top
+- Caption text field with 2,200 character limit (Instagram standard)
+- Character counter
+- Small thumbnail preview next to caption
+- Cancel and Share buttons in nav bar
+- "Posting..." overlay during upload
+- Auto-focus on caption field
+- Error alerts with retry capability
+
+**4. UploadViewModel.swift** - Upload state management:
+- Manages upload flow: idle → uploading → success/error
+- Coordinates PostService calls
+- Error handling with user-friendly messages
+- Observable state for UI updates
+- Upload success tracking for auto-dismiss
+
+**5. UploadView.swift** - Photo picker integration:
+- Native PHPickerViewController (no permissions required!)
+- "Select Photo" button with Instagram styling
+- Sheet presentation for NewPostView
+- Automatic cleanup on dismiss
+- Access to current user ID from AuthViewModel
+
+#### Upload Flow
+
+```
+1. User taps Upload tab
+2. Taps "Select Photo" button
+3. PHPicker appears (native iOS picker)
+4. User selects photo
+5. NewPostView presents with preview
+6. User adds optional caption
+7. User taps "Share"
+8. Image compresses (~500-800 KB)
+9. Uploads to Supabase Storage (posts/{userId}/{postId}.jpg)
+10. Creates post record in database
+11. Success → Dismisses to Upload tab
+```
+
+#### Storage & Database Structure
+
+**Supabase Storage (posts bucket):**
+```
+posts/
+└── {userId}/
+    ├── {postId1}.jpg
+    ├── {postId2}.jpg
+    └── {postId3}.jpg
+```
+
+**Database (posts table):**
+- id (UUID)
+- author (UUID)
+- caption (TEXT, nullable)
+- media_key (TEXT, storage path)
+- media_type (TEXT, 'photo')
+- created_at (TIMESTAMP)
+
+#### Issues Encountered & Solutions
+
+**Issue 1: RLS Policy Blocking Uploads**
+- **Problem:** Storage upload failed with "new row violates row-level security policy"
+- **Root Cause:** Complex folder-based RLS policy with UUID string matching failures
+- **Solution:** Simplified to same pattern as Phase 3 avatars bucket:
+  ```sql
+  CREATE POLICY "Authenticated users can upload posts"
+  ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'posts');
+  ```
+- **Lesson:** Keep storage RLS policies simple for authenticated-only apps
+
+**Issue 2: UUID Type Mismatch**
+- **Problem:** Database insert failed RLS check `auth.uid() = author`
+- **Root Cause:** Sending author as String instead of UUID
+- **Solution:** Changed `NewPost` struct to use UUID types directly
+- **Lesson:** Match Swift types to Postgres column types exactly
+
+**Issue 3: Upload Timeout (Simulator)**
+- **Problem:** 1.8 MB uploads timing out on simulator
+- **Root Cause:** iOS Simulator network throttling and QUIC protocol issues
+- **Solution:**
+  - Reduced compression: 1200px → 1080px
+  - Lower target: 2MB → 1MB
+  - Lower quality: 0.8 → 0.7
+  - **Result:** ~739 KB files (but still timing out on simulator)
+- **Status:** ⚠️ Pending physical device testing
+- **Expected:** Should work perfectly on real device with real network
+
+#### Key Design Decisions
+
+**No Edge Functions:**
+- Supabase has built-in image transformation (on-the-fly resizing/optimization)
+- Client-side compression sufficient for upload size management
+- Keeps architecture simple
+
+**PHPicker vs Custom Picker:**
+- Using native PHPickerViewController
+- No Info.plist permissions needed (system-level privacy)
+- Single photo selection only (Phase 5 scope)
+- Can enhance with custom picker later if needed
+
+**Sequential Upload:**
+- Upload image first → Get storage path → Create database record
+- Prevents orphaned database records if upload fails
+- Matches Instagram's approach
+
+**Simple Progress Indicator:**
+- "Posting..." overlay with spinner
+- No percentage or background uploads (Phase 5 scope)
+- Can enhance in polish phase if needed
+
+#### Testing Status
+
+**✅ Tested on Simulator:**
+- Photo picker works perfectly
+- Caption entry works
+- Image compression works (739 KB achieved)
+- RLS policies fixed
+- Database structure verified
+
+**⚠️ Pending Physical Device Test:**
+- Upload timeout on simulator (network throttling)
+- Expected to work on real device with actual WiFi/cellular
+- 739 KB should upload in 2-3 seconds on real network
+
+**✅ Verified in Supabase Dashboard:**
+- Storage bucket structure correct
+- RLS policies working
+- Database schema ready
+
+#### Important Learnings
+
+**Image Compression Strategy:**
+- Target 1080px matches Instagram standard
+- Sub-1MB files upload quickly even on slower connections
+- Adaptive quality (0.7 → 0.1) ensures size limits met
+- SwiftUI's UIGraphicsImageRenderer efficient for resizing
+
+**Simulator Network Limitations:**
+- Simulator is unreliable for upload testing
+- QUIC protocol issues common
+- Always test network operations on physical device
+- Even small files can timeout on simulator
+
+**Storage RLS Pattern:**
+- Simple is better: `bucket_id = 'posts'` for authenticated users
+- Avoid complex folder name parsing with UUIDs
+- Trust app-level organization (user folders)
+- Use `owner` field for UPDATE/DELETE policies
+
+**Phase 5 Status: ✅ COMPLETE**
+
+**Testing Results (iPhone 14):**
+- ✅ Photo picker works perfectly
+- ✅ Image compression works (742 KB achieved)
+- ✅ Upload to Supabase Storage successful
+- ✅ Post record creation successful
+- ✅ Date decoding issue fixed with custom JSONDecoder.supabase
+- ✅ Profile loading working
+- ✅ End-to-end post creation flow complete
+
+**Important Fix Applied:**
+Created `JSONDecoder+Supabase.swift` extension to handle Supabase's ISO8601 dates with fractional seconds (e.g., `2024-10-22T12:34:56.789123+00:00`). This fixed both profile loading and post creation errors.
+
+---
+
+### 🚀 Next: Phase 6 – Feed Data Integration & Video Support
 
 **What We'll Build:**
-- Camera & photo picker integration
-- Image/video selection UI
-- Media upload to Supabase Storage
-- Caption entry screen
-- Post creation in database
-- Background upload with progress indicator
+
+**Part A: Feed Data (Replace Mock with Real)**
+- FeedService with Supabase queries
+- Fetch posts from followed users
+- Signed URLs for images
+- Pagination (infinite scroll)
+- Replace Phase 4 mock data
+
+**Part B: Video Support**
+- Video upload with PHPicker
+- Video compression
+- Thumbnail generation
+- AVPlayer for playback
+- Play/pause controls
 
 **Prerequisites:**
-- ✅ Phase 4: Feed UI Foundation complete
-- ✅ Storage buckets configured (Phase 1b)
-- ✅ Posts table ready (Phase 1b)
+- ✅ Phase 5: Photo Upload complete
+- ✅ Phase 4: Feed UI ready
+- ✅ Storage & database configured
 
-**Status:** Ready to start!
+**Status:** Ready to start after Phase 5 device testing!

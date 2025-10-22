@@ -30,9 +30,7 @@ final class ProfileService {
             .single()
             .execute()
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let profile = try decoder.decode(Profile.self, from: response.data)
+        let profile = try JSONDecoder.supabase.decode(Profile.self, from: response.data)
         return profile
     }
 
@@ -82,9 +80,7 @@ final class ProfileService {
             .single()
             .execute()
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let profile = try decoder.decode(Profile.self, from: response.data)
+        let profile = try JSONDecoder.supabase.decode(Profile.self, from: response.data)
         return profile
     }
 
@@ -98,29 +94,19 @@ final class ProfileService {
     func uploadAvatar(image: UIImage, userId: UUID) async throws -> String {
         print("📸 Starting avatar upload for user: \(userId)")
 
-        // Compress image to JPEG (max 2MB as per bucket policy)
-        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+        // Step 1: Resize image to reasonable dimensions (avatars don't need to be huge)
+        let maxDimension: CGFloat = 800 // Avatars only need 800x800 max
+        let resizedImage = resizeImage(image, maxDimension: maxDimension)
+
+        // Step 2: Compress with iterative quality reduction to meet 2MB limit
+        let maxBytes = 2 * 1024 * 1024 // 2MB
+        guard let finalData = compressToTarget(resizedImage, maxBytes: maxBytes) else {
             print("❌ Image compression failed")
             throw ProfileServiceError.imageCompressionFailed
         }
 
-        print("✅ Image compressed: \(imageData.count) bytes")
-
-        // Ensure image is under 2MB
-        let finalData: Data
-        if imageData.count > 2 * 1024 * 1024 {
-            print("⚠️ Image too large (\(imageData.count) bytes), recompressing...")
-            // Try with lower quality
-            guard let compressedData = image.jpegData(compressionQuality: 0.5),
-                  compressedData.count <= 2 * 1024 * 1024 else {
-                print("❌ Image still too large after recompression")
-                throw ProfileServiceError.imageTooLarge
-            }
-            finalData = compressedData
-            print("✅ Recompressed to: \(finalData.count) bytes")
-        } else {
-            finalData = imageData
-        }
+        let fileSize = ByteCountFormatter.string(fromByteCount: Int64(finalData.count), countStyle: .file)
+        print("✅ Image compressed: \(fileSize)")
 
         // Store in user-specific folder: {userId}/{userId}.jpg
         let fileName = "\(userId.uuidString).jpg"
@@ -196,6 +182,52 @@ final class ProfileService {
             followingCount: followingCount
         )
     }
+
+    // MARK: - Image Compression Helpers
+
+    /// Resizes an image to fit within max dimensions while maintaining aspect ratio
+    private func resizeImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        let size = image.size
+
+        // Check if resize is needed
+        guard size.width > maxDimension || size.height > maxDimension else {
+            return image
+        }
+
+        // Calculate new size maintaining aspect ratio
+        let aspectRatio = size.width / size.height
+        var newSize: CGSize
+
+        if size.width > size.height {
+            // Landscape or square
+            newSize = CGSize(width: maxDimension, height: maxDimension / aspectRatio)
+        } else {
+            // Portrait
+            newSize = CGSize(width: maxDimension * aspectRatio, height: maxDimension)
+        }
+
+        // Resize image
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let resizedImage = renderer.image { context in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+
+        return resizedImage
+    }
+
+    /// Compresses image to JPEG, adjusting quality to meet size target
+    private func compressToTarget(_ image: UIImage, maxBytes: Int) -> Data? {
+        var compressionQuality: CGFloat = 0.8
+        var imageData = image.jpegData(compressionQuality: compressionQuality)
+
+        // Iteratively reduce quality if size is too large
+        while let data = imageData, data.count > maxBytes && compressionQuality > 0.1 {
+            compressionQuality -= 0.1
+            imageData = image.jpegData(compressionQuality: compressionQuality)
+        }
+
+        return imageData
+    }
 }
 
 // MARK: - Supporting Types
@@ -208,14 +240,11 @@ struct ProfileStats {
 
 enum ProfileServiceError: LocalizedError {
     case imageCompressionFailed
-    case imageTooLarge
 
     var errorDescription: String? {
         switch self {
         case .imageCompressionFailed:
-            return "Failed to compress image"
-        case .imageTooLarge:
-            return "Image is too large. Please select a smaller image."
+            return "Failed to compress image. Please try a different photo."
         }
     }
 }
