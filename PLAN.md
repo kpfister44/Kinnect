@@ -3,6 +3,25 @@
 ## Overview
 Building a polished, private Instagram-style iOS app from scratch. The plan is structured in phases, each delivering a functional milestone. We'll build the foundation first, then layer features incrementally.
 
+## Phase Order (Updated October 23, 2025)
+
+**Completed Phases:**
+- ✅ Phase 1: Foundation & Project Setup
+- ✅ Phase 2: Authentication Flow
+- ✅ Phase 3: Profile System
+- ✅ Phase 4: Feed UI Foundation
+- ✅ Phase 5: Photo Upload & Post Creation
+- ✅ Phase 6 Part A: Feed Data Integration
+- ✅ Phase 7: Social Interactions (Likes & Comments)
+
+**Upcoming Phases:**
+- 🔜 **Phase 8: Following System** ← NEXT
+- Phase 9: Realtime Updates
+- Phase 6 Part B: Video Support (deferred until after core social features)
+- Phase 10: Polish, Testing & Edge Cases
+
+**Rationale:** Video support has been strategically deferred to prioritize the core social experience. By completing likes, comments, follows, and realtime updates first, we can validate the fundamental product with users before adding the complexity of video compression and playback. This follows the "Instagram for close friends" philosophy where photos are primary and video is an enhancement.
+
 ---
 
 ## Phase 1: Foundation & Project Setup
@@ -232,10 +251,10 @@ comments (
 
 ---
 
-## Phase 6: Feed Data Integration & Video Support
-**Goal:** Connect feed to real Supabase data and add video upload/playback
+## Phase 6 Part A: Feed Data Integration
+**Goal:** Connect feed to real Supabase data (photos only)
 
-### Part A: Feed Data (Phase 4 UI → Real Data)
+### Tasks:
 1. **FeedService**
    - Fetch posts from followed users (SQL query with joins)
    - Include author profile, like count, comment count
@@ -256,28 +275,9 @@ comments (
    - Update like counts from database
    - Show real comment counts
 
-### Part B: Video Support
-4. **Video Upload**
-   - Extend PHPicker to support video selection
-   - Video compression (client-side or Edge Function)
-   - Upload to `posts` bucket (50MB limit)
-   - Thumbnail generation for video preview
-   - File naming: `{userId}/{postId}.mp4`
+**Deliverable:** Users see a real feed with posts from followed users (photos only)
 
-5. **Video Playback**
-   - Add AVPlayer to PostCellView for video posts
-   - Play/pause controls
-   - Mute/unmute toggle
-   - Auto-play when scrolled into view (optional)
-   - Handle video loading states
-
-6. **Update PostCellView**
-   - Detect `media_type` (photo vs video)
-   - Show video player for video posts
-   - Show image for photo posts
-   - Video thumbnail with play button overlay
-
-**Deliverable:** Users see a real feed with posts from followed users, including both photos and videos with playback support
+**Note:** Video support (Phase 6 Part B) has been deferred until after core social features are complete. This allows us to validate the core user experience with photos first, then add video as an enhancement.
 
 ---
 
@@ -356,6 +356,42 @@ comments (
    - Trigger on new likes, comments, follows
 
 **Deliverable:** Feed updates dynamically when friends post, optional push notifications
+
+---
+
+## Phase 6 Part B: Video Support
+**Goal:** Add video upload and playback capabilities
+
+**Rationale for Deferring:** Video support has been moved after core social features (Phases 7-9) to prioritize the fundamental user experience. This is an "Instagram for close friends" app where photos are primary and video is an enhancement. By implementing likes, comments, follows, and realtime updates first, we can validate the core product with real users before investing in the complexity of video compression and playback.
+
+### Tasks:
+1. **Video Upload**
+   - Extend PHPicker to support video selection
+   - Video compression (client-side using AVAssetExportSession)
+   - Upload to `posts` bucket (50MB limit)
+   - Thumbnail generation for video preview
+   - File naming: `{userId}/{postId}.mp4`
+
+2. **Video Playback**
+   - Add AVPlayer to PostCellView for video posts
+   - Play/pause controls
+   - Mute/unmute toggle
+   - Manual playback (no auto-play for battery/data conservation)
+   - Handle video loading states
+
+3. **Update PostCellView**
+   - Detect `media_type` (photo vs video)
+   - Show video player for video posts
+   - Show image for photo posts
+   - Video thumbnail with play button overlay
+
+**Key Challenges:**
+- Video compression can be device-specific and complex
+- AVPlayer memory management requires careful handling
+- Balancing quality vs 50MB storage limit
+- Codec/format compatibility across iOS versions
+
+**Deliverable:** Users can upload and play videos in the feed alongside photos
 
 ---
 
@@ -456,14 +492,18 @@ Kinnect/
 ---
 
 ## Timeline Estimate (Rough)
-- **Phase 1-2:** Foundation & Auth → ~1-2 weeks
-- **Phase 3-4:** Profile & Feed UI → ~1 week
-- **Phase 5-6:** Upload & Feed Data → ~2 weeks
-- **Phase 7-8:** Social Features → ~1-2 weeks
-- **Phase 9:** Realtime → ~3-5 days
+- **Phase 1-2:** Foundation & Auth → ~1-2 weeks ✅ COMPLETE
+- **Phase 3-4:** Profile & Feed UI → ~1 week ✅ COMPLETE
+- **Phase 5:** Photo Upload → ~1 week ✅ COMPLETE
+- **Phase 6 Part A:** Feed Data Integration → ~3-5 days ✅ COMPLETE
+- **Phase 7:** Social Interactions (Likes & Comments) → ~1 week
+- **Phase 8:** Following System → ~1 week
+- **Phase 9:** Realtime Updates → ~3-5 days
+- **Phase 6 Part B:** Video Support → ~1-2 weeks
 - **Phase 10:** Polish & Testing → ~1 week
 
-**Total MVP:** 6-8 weeks (with dedicated development time)
+**Total MVP (Photos Only):** 6-8 weeks (with dedicated development time)
+**With Video Enhancement:** 7-10 weeks total
 
 ---
 
@@ -1211,18 +1251,193 @@ GeometryReader in the imageView was expanding and overlapping the action buttons
 
 ---
 
-### 🚀 Next: Fix Known Issues, Then Phase 6 Part B
+---
 
-**Before moving to Part B (Video Support), need to:**
-1. Resolve Swift compiler type-check error in PostCellView
-2. Fix like button closure capture bug
-3. Test feed thoroughly with multiple posts
+### ✅ Phase 7: Social Interactions – COMPLETE
 
-**Part B: Video Support** (Pending)
-- Video upload with PHPicker
-- Client-side video compression
-- Thumbnail generation on device
-- AVPlayer for playback
-- Manual play/pause controls (not auto-play)
+**Completed:** October 23, 2025
+
+**What We Built:**
+
+#### Like System (Full Stack)
+
+**Backend Layer:**
+- ✅ **LikeService.swift** - Complete like management service:
+  - `toggleLike(postId:userId:)` - Smart toggle (like if not liked, unlike if liked)
+  - `checkLikeExists()` - Query existing likes
+  - `insertLike()` - Add new like to database
+  - `deleteLike()` - Remove like from database
+  - Comprehensive error handling with custom error types
+
+**ViewModel Integration:**
+- ✅ **FeedViewModel updates:**
+  - Added `likeService` dependency injection
+  - Optimistic UI updates (immediate visual feedback)
+  - Async database persistence with error handling
+  - Rollback on failure (reverts UI if API fails)
+  - Error toast notifications for failed operations
+
+**Testing Results:**
+- ✅ Like button toggles immediately (red heart fill/unfill)
+- ✅ Like count updates in real-time
+- ✅ Database persistence verified in Supabase
+- ✅ Error handling with UI rollback working
+- ✅ Likes survive app restart (full persistence)
+
+#### Comment System (Full Stack)
+
+**Backend Layer:**
+- ✅ **CommentService.swift** - Complete comment management:
+  - `fetchComments(postId:)` - Fetch with author profiles via JOIN
+  - `addComment(postId:userId:body:)` - Create new comment
+  - `deleteComment(commentId:userId:)` - Delete own comments only
+  - Character limit: 2,200 (Instagram standard)
+  - Oldest-first ordering (conversation flow)
+  - Validation (non-empty, length check)
+
+**ViewModel Layer:**
+- ✅ **CommentViewModel.swift** - State management:
+  - Loading states (idle, loading, loaded, error, posting)
+  - `loadComments()` - Fetch comments with profiles
+  - `postComment()` - Add with optimistic update + refresh
+  - `deleteComment()` - Remove with optimistic update
+  - Character counter with limit warning
+  - Error handling with rollback
+  - Callback to update parent feed's comment count
+
+**UI Components:**
+- ✅ **CommentCellView.swift** - Individual comment display:
+  - Circular avatar (32x32)
+  - Username (bold) + comment text (normal)
+  - Relative timestamp (e.g., "9s", "5m", "2h")
+  - Delete button (trash icon) for own comments only
+  - Proper text wrapping
+
+- ✅ **CommentsView.swift** - Instagram-style bottom sheet:
+  - Navigation bar with "Comments" title + X button
+  - Loading state with spinner
+  - Empty state ("No comments yet. Be the first!")
+  - Error state with retry button
+  - Scrollable comment list (LazyVStack)
+  - Input area pinned to bottom:
+    - Multi-line text field (1-6 lines)
+    - Character counter (appears when typing)
+    - Red counter when at limit (2,200)
+    - "Post" button (disabled until valid input)
+    - "Posting..." spinner during submission
+  - Keyboard-aware (auto-focus on appear)
+
+**Integration:**
+- ✅ **PostCellView updates:**
+  - Added `showingComments` state
+  - Sheet presentation for CommentsView
+  - Local comment count tracking (optimistic updates)
+  - Comment button opens sheet
+  - "View all X comments" link opens sheet
+  - Comment count updates when sheet dismisses
+
+**Key Features:**
+- **Optimistic updates** - Instant UI feedback for add/delete
+- **Real-time sync** - Refresh after posting to get server data
+- **Character validation** - 2,200 limit with visual warning
+- **Delete protection** - Only own comments can be deleted (UI + RLS)
+- **Profile integration** - Comments show user avatars and usernames
+- **Instagram UX** - Matches Instagram's comment flow exactly
+
+#### Bug Fixes
+
+**Issue: Missing Profile Fields in Comments**
+- **Problem:** Profile decoder expected `created_at` and `bio` fields
+- **Solution:** Added missing fields to Supabase SELECT query
+- **Result:** Comments now load with full profile data
+
+**Issue: Actor Isolation in CommentViewModel Init**
+- **Problem:** Main actor-isolated static property `.shared` in default parameter
+- **Solution:** Made `commentService` optional parameter, use `?? .shared` in body
+- **Result:** No actor isolation warnings
+
+**Issue: Missing Combine Import**
+- **Problem:** `ObservableObject` conformance requires Combine framework
+- **Solution:** Added `import Combine` to CommentViewModel
+- **Result:** Clean build, no errors
+
+#### Database Verification
+
+**Likes Table:**
+- ✅ Likes persist correctly with `post_id`, `user_id`, `created_at`
+- ✅ Unlike removes rows from database
+- ✅ RLS policies working (users can only like as themselves)
+
+**Comments Table:**
+- ✅ Comments persist with full data
+- ✅ Profile joins working (username, avatar displayed)
+- ✅ Oldest-first ordering correct
+- ✅ Delete operations working (only own comments)
+
+#### Important Learnings
+
+**Optimistic UI Pattern:**
+```swift
+// 1. Store previous state
+let previousState = currentState
+
+// 2. Update UI immediately
+currentState = newState
+
+// 3. Call API
+Task {
+    do {
+        try await apiCall()
+    } catch {
+        // 4. Revert on error
+        currentState = previousState
+        showError()
+    }
+}
+```
+
+**Supabase Profile Joins:**
+- Must include ALL fields required by the Codable model
+- Missing fields cause keyNotFound errors
+- Include `created_at`, `bio`, etc. even if not displayed
+
+**Comment Count Synchronization:**
+- Use callback pattern: `onCommentCountChanged: @escaping (Int) -> Void`
+- Parent (PostCellView) tracks local count for immediate updates
+- Child (CommentsView) notifies parent of changes
+- Prevents full feed refresh just for count updates
+
+**Files Created:**
+- `/Services/LikeService.swift`
+- `/Services/CommentService.swift`
+- `/ViewModels/CommentViewModel.swift`
+- `/Views/Feed/CommentCellView.swift`
+- `/Views/Feed/CommentsView.swift`
+
+**Files Modified:**
+- `/ViewModels/FeedViewModel.swift` - Added like service integration
+- `/Views/Feed/FeedView.swift` - Added error toast for actions
+- `/Views/Feed/PostCellView.swift` - Added comment sheet presentation
+- `/Models/Comment.swift` - Added custom initializer
+
+**Phase 7 Status: ✅ COMPLETE**
+
+---
+
+## 🚀 Next Phase: Phase 8 - Following System
+
+**Phase 7 Complete!** Users can now like and comment on posts with full database persistence and Instagram-style UX.
+
+**What's Next:**
+Phase 8 will enable users to build their private network by implementing:
+1. **Search/Discovery** - Find users by username
+2. **Follow/Unfollow** - Build connections
+3. **Followers/Following Lists** - View network
+4. **FollowService** - Backend integration
+
+**After Phase 8:**
+- Phase 9: Realtime Updates (feed auto-refreshes when friends post)
+- Phase 6 Part B: Video Support (deferred until core social features complete)
+- Phase 10: Polish, Testing & Edge Cases
 
 ---

@@ -13,6 +13,14 @@ struct PostCellView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
 
     @State private var isExpanded = false
+    @State private var showingComments = false
+    @State private var localCommentCount: Int
+
+    init(post: Post, mediaURL: URL?) {
+        self.post = post
+        self.mediaURL = mediaURL
+        _localCommentCount = State(initialValue: post.commentCount)
+    }
 
     private var shouldTruncate: Bool {
         guard let caption = post.caption else { return false }
@@ -57,11 +65,11 @@ struct PostCellView: View {
             }
 
             // MARK: - View Comments (if comments exist)
-            if post.commentCount > 0 {
+            if localCommentCount > 0 {
                 Button {
-                    feedViewModel.openComments(forPostID: post.id)
+                    showingComments = true
                 } label: {
-                    Text("View all \(post.commentCount) comments")
+                    Text("View all \(localCommentCount) comments")
                         .font(.system(size: 14))
                         .foregroundColor(.igTextSecondary)
                 }
@@ -78,6 +86,15 @@ struct PostCellView: View {
                 .padding(.bottom, 12)
         }
         .background(Color.igBackground)
+        .sheet(isPresented: $showingComments) {
+            CommentsView(
+                postId: post.id,
+                currentUserId: feedViewModel.currentUserId,
+                onCommentCountChanged: { newCount in
+                    localCommentCount = newCount
+                }
+            )
+        }
     }
 
     // MARK: - View Components
@@ -129,7 +146,7 @@ struct PostCellView: View {
             }
 
             Button {
-                feedViewModel.openComments(forPostID: post.id)
+                showingComments = true
             } label: {
                 Image(systemName: "bubble.right")
                     .font(.system(size: 24))

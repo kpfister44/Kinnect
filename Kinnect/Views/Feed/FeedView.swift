@@ -21,23 +21,57 @@ struct FeedView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                switch viewModel.state {
-                case .idle, .loading:
-                    loadingView
-                case .loaded:
-                    if viewModel.posts.isEmpty {
-                        emptyStateView
-                    } else {
-                        feedScrollView
+            ZStack {
+                Group {
+                    switch viewModel.state {
+                    case .idle, .loading:
+                        loadingView
+                    case .loaded:
+                        if viewModel.posts.isEmpty {
+                            emptyStateView
+                        } else {
+                            feedScrollView
+                        }
+                    case .error:
+                        errorView
                     }
-                case .error:
-                    errorView
+                }
+                .navigationTitle("Kinnect")
+                .navigationBarTitleDisplayMode(.inline)
+                .background(Color.igBackground)
+
+                // Error toast (for like/action errors)
+                if let errorMessage = viewModel.errorMessage, viewModel.state == .loaded {
+                    VStack {
+                        Spacer()
+
+                        HStack {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(.white)
+
+                            Text(errorMessage)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+
+                            Spacer()
+
+                            Button {
+                                viewModel.errorMessage = nil
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 12, weight: .bold))
+                            }
+                        }
+                        .padding()
+                        .background(Color.igBlack.opacity(0.9))
+                        .cornerRadius(8)
+                        .padding()
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    .animation(.spring(), value: viewModel.errorMessage)
                 }
             }
-            .navigationTitle("Kinnect")
-            .navigationBarTitleDisplayMode(.inline)
-            .background(Color.igBackground)
             .task {
                 await viewModel.loadFeed()
             }

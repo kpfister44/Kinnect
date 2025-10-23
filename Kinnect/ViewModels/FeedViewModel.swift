@@ -18,7 +18,8 @@ final class FeedViewModel: ObservableObject {
 
     // MARK: - Dependencies
     private let feedService: FeedService
-    private let currentUserId: UUID
+    private let likeService: LikeService
+    let currentUserId: UUID // Exposed for comment sheet
 
     // MARK: - Pagination
     private var currentOffset = 0
@@ -27,8 +28,9 @@ final class FeedViewModel: ObservableObject {
 
     // MARK: - Initialization
 
-    init(feedService: FeedService = .shared, currentUserId: UUID) {
+    init(feedService: FeedService = .shared, likeService: LikeService = .shared, currentUserId: UUID) {
         self.feedService = feedService
+        self.likeService = likeService
         self.currentUserId = currentUserId
     }
 
@@ -122,19 +124,47 @@ final class FeedViewModel: ObservableObject {
 
     // MARK: - Actions (Phase 7)
 
-    /// Handle like action (Phase 7 implementation)
+    /// Handle like action with optimistic update and error handling
     func toggleLike(forPostID postID: UUID) {
-        // Optimistic update
-        if let index = posts.firstIndex(where: { $0.id == postID }) {
-            posts[index].isLikedByCurrentUser.toggle()
-            posts[index].likeCount += posts[index].isLikedByCurrentUser ? 1 : -1
+        guard let index = posts.firstIndex(where: { $0.id == postID }) else {
+            return
         }
 
-        // TODO: Implement actual like API call in Phase 7
+        // Store previous state for rollback if needed
+        let previousLikedState = posts[index].isLikedByCurrentUser
+        let previousLikeCount = posts[index].likeCount
+
+        // Optimistic update (immediate UI feedback)
+        posts[index].isLikedByCurrentUser.toggle()
+        posts[index].likeCount += posts[index].isLikedByCurrentUser ? 1 : -1
+
+        // Perform async like operation
+        Task {
+            do {
+                let newLikedState = try await likeService.toggleLike(
+                    postId: postID,
+                    userId: currentUserId
+                )
+
+                // Verify optimistic update matches server response
+                if posts[index].isLikedByCurrentUser != newLikedState {
+                    print("⚠️ Optimistic update mismatch, correcting...")
+                    posts[index].isLikedByCurrentUser = newLikedState
+                    posts[index].likeCount = previousLikeCount + (newLikedState ? 1 : -1)
+                }
+
+                print("✅ Like toggled successfully: \(newLikedState ? "liked" : "unliked")")
+            } catch {
+                print("❌ Failed to toggle like: \(error)")
+
+                // Revert optimistic update on error
+                posts[index].isLikedByCurrentUser = previousLikedState
+                posts[index].likeCount = previousLikeCount
+
+                // Show error to user
+                errorMessage = "Failed to \(previousLikedState ? "unlike" : "like") post. Please try again."
+            }
+        }
     }
 
-    /// Handle comment action (Phase 7 implementation)
-    func openComments(forPostID postID: UUID) {
-        // TODO: Implement comment sheet in Phase 7
-    }
 }
