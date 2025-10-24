@@ -269,6 +269,80 @@ Use this project ID when calling Supabase MCP tools.
 
 ---
 
+## Feature Documentation
+
+Detailed documentation for completed features is available in `/docs/`. Reference these documents when working on related functionality:
+
+### Core Infrastructure
+
+**`/docs/BACKEND_SETUP.md`** - Foundation & Supabase Configuration
+- Project structure and MVVM architecture
+- Supabase SDK setup and services layer
+- Database schema (all 5 tables)
+- Row-Level Security policies
+- Storage buckets (avatars, posts)
+- MCP tools reference
+
+**When to reference:** Backend changes, database migrations, storage operations, RLS policy updates
+
+---
+
+### Feature Implementations
+
+**`/docs/features/AUTHENTICATION.md`** - Sign in with Apple Flow
+- AuthViewModel and auth state management
+- WelcomeView, UsernameCreationView, TabBarView
+- Session persistence and routing
+- Instagram color palette
+
+**When to reference:** Auth-related changes, user onboarding, session management
+
+---
+
+**`/docs/features/PROFILE_SYSTEM.md`** - User Profiles
+- ProfileService, ProfileViewModel
+- Profile viewing and editing
+- Avatar upload with compression
+- Stats display (posts/followers/following)
+- Cache-busting for images
+
+**When to reference:** Profile features, avatar handling, user stats, image compression patterns
+
+---
+
+**`/docs/features/FEED_SYSTEM.md`** - Post Feed Display
+- FeedService, FeedViewModel
+- PostCellView, CaptionView
+- Signed URLs for images
+- Pagination and infinite scroll
+- GeometryReader hit-testing bug fix
+
+**When to reference:** Feed functionality, post display, pagination, AsyncImage patterns, hit-testing issues
+
+---
+
+**`/docs/features/UPLOAD_SYSTEM.md`** - Photo Upload & Post Creation
+- PostService, UploadViewModel
+- PHPicker integration
+- Image compression strategy
+- NewPostView (caption entry)
+- PhotosPicker race condition bug fix
+
+**When to reference:** Upload functionality, image compression, photo selection, sheet presentation issues
+
+---
+
+**`/docs/features/SOCIAL_INTERACTIONS.md`** - Likes & Comments
+- LikeService, CommentService, CommentViewModel
+- Optimistic UI patterns
+- CommentsView (bottom sheet)
+- Character limits and validation
+- Comment count synchronization
+
+**When to reference:** Likes, comments, optimistic updates, bottom sheets, character validation
+
+---
+
 ## Common Issues & Solutions
 
 ### PhotosPicker Sheet Presentation Race Condition

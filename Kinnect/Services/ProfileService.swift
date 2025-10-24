@@ -233,9 +233,9 @@ final class ProfileService {
 // MARK: - Supporting Types
 
 struct ProfileStats {
-    let postsCount: Int
-    let followersCount: Int
-    let followingCount: Int
+    var postsCount: Int
+    var followersCount: Int
+    var followingCount: Int
 }
 
 enum ProfileServiceError: LocalizedError {

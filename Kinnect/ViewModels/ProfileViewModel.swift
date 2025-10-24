@@ -17,21 +17,28 @@ final class ProfileViewModel: ObservableObject {
     @Published var stats: ProfileStats?
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var isFollowing: Bool = false
+    @Published var isFollowOperationInProgress: Bool = false
 
     // MARK: - Private Properties
 
     private let profileService: ProfileService
+    private let followService: FollowService
 
     // MARK: - Initialization
 
-    init(profileService: ProfileService = ProfileService.shared) {
+    init(profileService: ProfileService = ProfileService.shared, followService: FollowService = FollowService.shared) {
         self.profileService = profileService
+        self.followService = followService
     }
 
     // MARK: - Profile Loading
 
     /// Load profile data and stats for a given user
-    func loadProfile(userId: UUID) async {
+    /// - Parameters:
+    ///   - userId: The user ID to load
+    ///   - currentUserId: The current user's ID (for checking follow status)
+    func loadProfile(userId: UUID, currentUserId: UUID? = nil) async {
         isLoading = true
         errorMessage = nil
 
@@ -44,6 +51,11 @@ final class ProfileViewModel: ObservableObject {
 
             self.profile = fetchedProfile
             self.stats = fetchedStats
+
+            // Check follow status if viewing someone else's profile
+            if let currentUserId = currentUserId, currentUserId != userId {
+                await checkFollowStatus(currentUserId: currentUserId, profileUserId: userId)
+            }
         } catch {
             errorMessage = "Failed to load profile. Please try again."
             print("❌ Profile loading error: \(error)")
@@ -132,5 +144,68 @@ final class ProfileViewModel: ObservableObject {
             print("❌ Stats refresh error: \(error)")
             // Don't show error to user for stats refresh - it's a background operation
         }
+    }
+
+    // MARK: - Follow Operations
+
+    /// Check if current user is following the profile user
+    private func checkFollowStatus(currentUserId: UUID, profileUserId: UUID) async {
+        do {
+            let status = try await followService.checkFollowStatus(
+                followerId: currentUserId,
+                followeeId: profileUserId
+            )
+            self.isFollowing = status
+        } catch {
+            print("❌ Follow status check error: \(error)")
+            // Don't show error to user - default to not following
+            self.isFollowing = false
+        }
+    }
+
+    /// Toggle follow/unfollow with optimistic UI updates
+    /// - Parameters:
+    ///   - currentUserId: The current user's ID
+    ///   - profileUserId: The profile user's ID
+    func toggleFollow(currentUserId: UUID, profileUserId: UUID) async {
+        // Store previous state for rollback
+        let previousFollowState = isFollowing
+        let previousStats = stats
+
+        // Optimistic update - toggle immediately
+        isFollowing.toggle()
+        isFollowOperationInProgress = true
+
+        // Update follower count optimistically
+        if var currentStats = stats {
+            if isFollowing {
+                currentStats.followersCount += 1
+            } else {
+                currentStats.followersCount = max(0, currentStats.followersCount - 1)
+            }
+            stats = currentStats
+        }
+
+        do {
+            // Perform API call
+            if isFollowing {
+                try await followService.followUser(followerId: currentUserId, followeeId: profileUserId)
+                print("✅ Followed user successfully")
+            } else {
+                try await followService.unfollowUser(followerId: currentUserId, followeeId: profileUserId)
+                print("✅ Unfollowed user successfully")
+            }
+
+            // Refresh stats to get accurate count from server
+            await refreshStats(userId: profileUserId)
+        } catch {
+            // Revert on error
+            print("❌ Follow toggle error: \(error)")
+            isFollowing = previousFollowState
+            stats = previousStats
+            errorMessage = "Failed to update follow status. Please try again."
+        }
+
+        isFollowOperationInProgress = false
     }
 }

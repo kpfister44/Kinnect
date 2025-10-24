@@ -11,8 +11,12 @@ struct ProfileHeaderView: View {
     let profile: Profile
     let stats: ProfileStats
     let isCurrentUser: Bool
+    let isFollowing: Bool
+    let isFollowOperationInProgress: Bool
     let onEditProfile: () -> Void
     let onFollowToggle: () -> Void
+    let onFollowersTap: () -> Void
+    let onFollowingTap: () -> Void
 
     var body: some View {
         VStack(spacing: 16) {
@@ -43,8 +47,18 @@ struct ProfileHeaderView: View {
                 // Stats
                 HStack(spacing: 32) {
                     StatView(count: stats.postsCount, label: "Posts")
-                    StatView(count: stats.followersCount, label: "Followers")
-                    StatView(count: stats.followingCount, label: "Following")
+
+                    // Tappable Followers
+                    Button(action: onFollowersTap) {
+                        StatView(count: stats.followersCount, label: "Followers")
+                    }
+                    .buttonStyle(PlainButtonStyle())
+
+                    // Tappable Following
+                    Button(action: onFollowingTap) {
+                        StatView(count: stats.followingCount, label: "Following")
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
                 .padding(.trailing, 8)
             }
@@ -85,18 +99,28 @@ struct ProfileHeaderView: View {
                 }
                 .padding(.horizontal, 16)
             } else {
-                // Follow button (non-functional placeholder for Phase 3)
+                // Follow button (Instagram-style)
                 Button(action: onFollowToggle) {
-                    Text("Follow")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 32)
-                        .background(Color.igBlue)
-                        .cornerRadius(8)
+                    HStack(spacing: 4) {
+                        if isFollowOperationInProgress {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: isFollowing ? .igTextPrimary : .white))
+                                .scaleEffect(0.8)
+                        }
+                        Text(isFollowing ? "Following" : "Follow")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(isFollowing ? .igTextPrimary : .white)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 32)
+                    .background(isFollowing ? Color.igBackgroundGray : Color.igBlue)
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(isFollowing ? Color.igBorderGray : Color.clear, lineWidth: 1)
+                    )
                 }
-                .disabled(true) // Will be enabled in Phase 8
-                .opacity(0.6) // Visual indicator that it's not yet functional
+                .disabled(isFollowOperationInProgress)
                 .padding(.horizontal, 16)
             }
         }
@@ -154,8 +178,12 @@ struct StatView: View {
             profile: sampleProfile,
             stats: sampleStats,
             isCurrentUser: true,
+            isFollowing: false,
+            isFollowOperationInProgress: false,
             onEditProfile: {},
-            onFollowToggle: {}
+            onFollowToggle: {},
+            onFollowersTap: {},
+            onFollowingTap: {}
         )
 
         Spacer()

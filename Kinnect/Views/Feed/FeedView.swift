@@ -103,20 +103,28 @@ struct FeedView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 16) {
-                Image(systemName: "photo.on.rectangle.angled")
+                Image(systemName: "person.2.slash")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 80, height: 80)
                     .foregroundColor(.igTextSecondary)
 
-                Text("No posts yet")
+                Text("Welcome to Kinnect")
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(.igTextPrimary)
 
-                Text("Upload a photo to get started!")
+                Text("Follow people to see their posts in your feed")
                     .font(.system(size: 16))
                     .foregroundColor(.igTextSecondary)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+
+                Text("Tap the search tab to find friends")
+                    .font(.system(size: 14))
+                    .foregroundColor(.igTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 4)
             }
             .padding()
         }

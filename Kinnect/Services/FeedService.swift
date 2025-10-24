@@ -20,9 +20,9 @@ final class FeedService {
 
     // MARK: - Feed Fetching
 
-    /// Fetch all posts with pagination
+    /// Fetch posts from followed users (and own posts) with pagination
     /// - Parameters:
-    ///   - currentUserId: The current user's ID (for checking if they liked posts)
+    ///   - currentUserId: The current user's ID
     ///   - limit: Number of posts to fetch (default: 20)
     ///   - offset: Offset for pagination (default: 0)
     /// - Returns: Array of fully-formed Post objects ready to display
@@ -33,7 +33,17 @@ final class FeedService {
     ) async throws -> [Post] {
         print("📱 Fetching feed for user: \(currentUserId), limit: \(limit), offset: \(offset)")
 
-        // Fetch posts ordered by created_at descending (newest first)
+        // Step 1: Get list of user IDs that current user follows
+        let followService = FollowService.shared
+        let followedUserIds = try await followService.getFollowingIds(userId: currentUserId)
+
+        // Step 2: Build list of author IDs (followed users + current user)
+        var authorIds = followedUserIds
+        authorIds.append(currentUserId)
+
+        print("📱 Fetching posts from \(authorIds.count) users (including self)")
+
+        // Step 3: Fetch posts from these authors
         let response = try await client
             .from("posts")
             .select("""
@@ -47,6 +57,7 @@ final class FeedService {
                     created_at
                 )
             """)
+            .in("author", values: authorIds.map { $0.uuidString })
             .order("created_at", ascending: false)
             .limit(limit)
             .range(from: offset, to: offset + limit - 1)

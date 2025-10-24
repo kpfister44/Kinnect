@@ -8,9 +8,18 @@
 import SwiftUI
 
 struct ProfileView: View {
+    /// Optional user ID - if nil, displays current user's profile
+    let userId: UUID?
+
     @EnvironmentObject var authViewModel: AuthViewModel
     @StateObject private var viewModel = ProfileViewModel()
     @State private var showEditProfile = false
+    @State private var showFollowersList = false
+    @State private var showFollowingList = false
+
+    init(userId: UUID? = nil) {
+        self.userId = userId
+    }
 
     var body: some View {
         NavigationStack {
@@ -29,19 +38,29 @@ struct ProfileView: View {
                         ProfileHeaderView(
                             profile: profile,
                             stats: stats,
-                            isCurrentUser: true,
+                            isCurrentUser: isCurrentUser,
+                            isFollowing: viewModel.isFollowing,
+                            isFollowOperationInProgress: viewModel.isFollowOperationInProgress,
                             onEditProfile: {
                                 showEditProfile = true
                             },
                             onFollowToggle: {
-                                // Non-functional for Phase 3
+                                Task {
+                                    await handleFollowToggle()
+                                }
+                            },
+                            onFollowersTap: {
+                                showFollowersList = true
+                            },
+                            onFollowingTap: {
+                                showFollowingList = true
                             }
                         )
 
                         // Posts Grid
                         ProfilePostsGridView(
                             posts: [], // Empty for now - will be populated in Phase 6
-                            isCurrentUser: true
+                            isCurrentUser: isCurrentUser
                         )
                     }
                 } else if let errorMessage = viewModel.errorMessage {
@@ -100,6 +119,16 @@ struct ProfileView: View {
                     )
                 }
             }
+            .sheet(isPresented: $showFollowersList) {
+                if let profile = viewModel.profile {
+                    FollowersListView(userId: profile.id)
+                }
+            }
+            .sheet(isPresented: $showFollowingList) {
+                if let profile = viewModel.profile {
+                    FollowingListView(userId: profile.id)
+                }
+            }
             .task {
                 await loadProfile()
             }
@@ -109,12 +138,54 @@ struct ProfileView: View {
         }
     }
 
-    private func loadProfile() async {
+    // MARK: - Computed Properties
+
+    /// Check if viewing current user's profile
+    private var isCurrentUser: Bool {
+        guard case .authenticated(let currentUserId) = authViewModel.authState else {
+            return false
+        }
+        // If userId is nil, we're viewing current user. Otherwise, check if it matches
+        return userId == nil || userId == currentUserId
+    }
+
+    /// Get the profile user ID to load
+    private var profileUserId: UUID? {
+        // If userId provided, use it. Otherwise use current user's ID
+        if let userId = userId {
+            return userId
+        }
+        guard case .authenticated(let currentUserId) = authViewModel.authState else {
+            return nil
+        }
+        return currentUserId
+    }
+
+    /// Get current user's ID
+    private var currentUserId: UUID? {
         guard case .authenticated(let userId) = authViewModel.authState else {
+            return nil
+        }
+        return userId
+    }
+
+    // MARK: - Helper Methods
+
+    private func loadProfile() async {
+        guard let profileId = profileUserId else {
             return
         }
 
-        await viewModel.loadProfile(userId: userId)
+        await viewModel.loadProfile(userId: profileId, currentUserId: currentUserId)
+    }
+
+    private func handleFollowToggle() async {
+        guard let currentId = currentUserId,
+              let profileId = profileUserId else {
+            return
+        }
+
+        await viewModel.toggleFollow(currentUserId: currentId, profileUserId: profileId)
     }
 }
 
