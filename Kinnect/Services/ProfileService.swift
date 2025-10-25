@@ -145,6 +145,53 @@ final class ProfileService {
         return cacheBustedURL
     }
 
+    // MARK: - User Posts
+
+    /// Fetch posts for a specific user (for profile grid display)
+    /// - Parameters:
+    ///   - userId: The user ID whose posts to fetch
+    ///   - limit: Number of posts to fetch (default: 100)
+    ///   - offset: Offset for pagination (default: 0)
+    /// - Returns: Array of Post objects with signed URLs
+    func fetchUserPosts(
+        userId: UUID,
+        limit: Int = 100,
+        offset: Int = 0
+    ) async throws -> [Post] {
+        print("📱 Fetching posts for user: \(userId)")
+
+        // Fetch posts from this user
+        let response = try await client
+            .from("posts")
+            .select("*")
+            .eq("author", value: userId.uuidString)
+            .order("created_at", ascending: false)
+            .limit(limit)
+            .range(from: offset, to: offset + limit - 1)
+            .execute()
+
+        // Decode posts
+        var posts = try JSONDecoder.supabase.decode([Post].self, from: response.data)
+
+        print("✅ Fetched \(posts.count) posts")
+
+        // Add signed URLs for each post
+        for index in posts.indices {
+            do {
+                let signedURL = try await client.storage
+                    .from("posts")
+                    .createSignedURL(path: posts[index].mediaKey, expiresIn: 3600) // 1 hour expiry
+
+                posts[index].mediaURL = signedURL
+            } catch {
+                print("⚠️ Failed to get signed URL for post \(posts[index].id): \(error)")
+                // Continue with other posts even if one fails
+            }
+        }
+
+        return posts
+    }
+
     // MARK: - Profile Stats
 
     /// Get profile statistics (posts count, followers count, following count)

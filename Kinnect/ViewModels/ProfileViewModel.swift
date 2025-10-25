@@ -15,6 +15,7 @@ final class ProfileViewModel: ObservableObject {
 
     @Published var profile: Profile?
     @Published var stats: ProfileStats?
+    @Published var posts: [Post] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isFollowing: Bool = false
@@ -43,14 +44,22 @@ final class ProfileViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            // Fetch profile and stats in parallel
+            // Fetch profile, stats, and posts in parallel
             async let profileData = profileService.fetchProfile(userId: userId)
             async let statsData = profileService.getProfileStats(userId: userId)
+            async let postsData = profileService.fetchUserPosts(userId: userId)
 
-            let (fetchedProfile, fetchedStats) = try await (profileData, statsData)
+            let (fetchedProfile, fetchedStats, fetchedPosts) = try await (profileData, statsData, postsData)
 
             self.profile = fetchedProfile
             self.stats = fetchedStats
+
+            // Attach author profile to each post
+            self.posts = fetchedPosts.map { post in
+                var updatedPost = post
+                updatedPost.authorProfile = fetchedProfile
+                return updatedPost
+            }
 
             // Check follow status if viewing someone else's profile
             if let currentUserId = currentUserId, currentUserId != userId {

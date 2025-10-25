@@ -14,12 +14,10 @@ struct PostCellView: View {
 
     @State private var isExpanded = false
     @State private var showingComments = false
-    @State private var localCommentCount: Int
 
     init(post: Post, mediaURL: URL?) {
         self.post = post
         self.mediaURL = mediaURL
-        _localCommentCount = State(initialValue: post.commentCount)
     }
 
     private var shouldTruncate: Bool {
@@ -65,11 +63,11 @@ struct PostCellView: View {
             }
 
             // MARK: - View Comments (if comments exist)
-            if localCommentCount > 0 {
+            if post.commentCount > 0 {
                 Button {
                     showingComments = true
                 } label: {
-                    Text("View all \(localCommentCount) comments")
+                    Text("View all \(post.commentCount) comments")
                         .font(.system(size: 14))
                         .foregroundColor(.igTextSecondary)
                 }
@@ -90,8 +88,8 @@ struct PostCellView: View {
             CommentsView(
                 postId: post.id,
                 currentUserId: feedViewModel.currentUserId,
-                onCommentCountChanged: { newCount in
-                    localCommentCount = newCount
+                onCommentCountChanged: { _ in
+                    // Comment count updates handled by realtime in FeedViewModel
                 }
             )
         }

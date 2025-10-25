@@ -30,7 +30,7 @@ struct FeedView: View {
                         if viewModel.posts.isEmpty {
                             emptyStateView
                         } else {
-                            feedScrollView
+                            feedScrollViewWithBanner
                         }
                     case .error:
                         errorView
@@ -74,6 +74,12 @@ struct FeedView: View {
             }
             .task {
                 await viewModel.loadFeed()
+                await viewModel.setupRealtimeSubscriptions()
+            }
+            .onDisappear {
+                Task {
+                    await viewModel.cleanupRealtimeSubscriptions()
+                }
             }
         }
     }
@@ -174,28 +180,52 @@ struct FeedView: View {
         }
     }
 
-    // MARK: - Feed Scroll View
-    private var feedScrollView: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                ForEach(viewModel.posts, id: \.id) { post in
-                    PostCellView(
-                        post: post,
-                        mediaURL: viewModel.getMediaURL(for: post)
-                    )
-                    .environmentObject(viewModel)
-                    .id(post.id) // Ensure SwiftUI tracks each cell by post ID
-                    .task {
-                        // Pagination: load more when reaching last post
-                        await viewModel.loadMorePostsIfNeeded(currentPost: post)
-                    }
+    // MARK: - Feed Scroll View with Banner (Phase 9)
+    private var feedScrollViewWithBanner: some View {
+        ZStack(alignment: .top) {
+            // Main feed content
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(viewModel.posts, id: \.id) { post in
+                            PostCellView(
+                                post: post,
+                                mediaURL: viewModel.getMediaURL(for: post)
+                            )
+                            .environmentObject(viewModel)
+                            .id(post.id) // Ensure SwiftUI tracks each cell by post ID
+                            .task {
+                                // Pagination: load more when reaching last post
+                                await viewModel.loadMorePostsIfNeeded(currentPost: post)
+                            }
 
-                    Divider()
-                        .background(Color.igSeparator)
+                            Divider()
+                                .background(Color.igSeparator)
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+                .onChange(of: viewModel.pendingNewPostsCount) { oldValue, newValue in
+                    // When user taps banner, scroll to top
+                    if newValue == 0, oldValue > 0, let firstPost = viewModel.posts.first {
+                        withAnimation {
+                            proxy.scrollTo(firstPost.id, anchor: .top)
+                        }
+                    }
                 }
             }
+
+            // New posts banner overlay (Phase 9)
+            if viewModel.showNewPostsBanner {
+                NewPostsBanner(count: viewModel.pendingNewPostsCount) {
+                    Task {
+                        await viewModel.scrollToTopAndLoadNewPosts()
+                    }
+                }
+                .padding(.horizontal)
+                .zIndex(1) // Ensure banner stays on top
+            }
         }
-        .scrollIndicators(.hidden)
     }
 }
 

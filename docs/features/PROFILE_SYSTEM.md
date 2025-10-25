@@ -1,13 +1,13 @@
 # Profile System
 
-**Phase 3: Profile System**
-**Completed:** October 21, 2025
+**Phase 3: Profile System (with Phase 10 enhancements)**
+**Completed:** October 21, 2025 (Grid functionality added October 25, 2025)
 
 ---
 
 ## Overview
 
-Complete user profile management with view/edit capabilities, avatar upload, and Instagram-style UI. Users can view their own profile, edit details, and view others' profiles with follow button (functional in Phase 8).
+Complete user profile management with view/edit capabilities, avatar upload, posts grid display, and Instagram-style UI. Users can view their own profile, edit details, view others' profiles with follow button (functional in Phase 8), and tap posts to view details.
 
 ---
 
@@ -22,10 +22,12 @@ func fetchProfile(userId: UUID) async throws -> Profile
 func updateProfile(userId: UUID, username: String?, fullName: String?, bio: String?, avatarUrl: String?) async throws
 func uploadAvatar(image: UIImage, userId: UUID) async throws -> String
 func getProfileStats(userId: UUID) async throws -> (posts: Int, followers: Int, following: Int)
+func fetchUserPosts(userId: UUID, limit: Int = 100, offset: Int = 0) async throws -> [Post]
 ```
 
 **Key Features:**
 - Parallel stats fetching (posts, followers, following counts)
+- User posts fetching with signed URLs for grid display
 - Avatar upload with automatic compression (2MB limit)
 - Validation (username format, bio length)
 - Comprehensive error handling
@@ -36,17 +38,19 @@ func getProfileStats(userId: UUID) async throws -> (posts: Int, followers: Int, 
 
 ```swift
 @Published var profile: Profile?
+@Published var posts: [Post] = []
 @Published var isLoading = false
 @Published var errorMessage: String?
 @Published var stats: (posts: Int, followers: Int, following: Int)?
 ```
 
 **Responsibilities:**
-- Load profile with parallel stats query
+- Load profile with parallel stats and posts query
 - Update profile with optimistic UI
 - Avatar upload coordination
 - Error handling with user-friendly messages
 - Refresh functionality
+- Attach author profile to posts for detail view display
 
 ---
 
@@ -72,7 +76,26 @@ Instagram-style profile header displaying:
 - Square aspect ratio (1:1)
 - Minimal spacing (1pt)
 - Empty state: camera icon + "No posts yet"
-- Placeholder cells ready for real post data (Phase 6)
+- Real post images loaded via AsyncImage with signed URLs
+- NavigationLink on each cell to PostDetailView
+- Loading states (spinner) and error states (exclamation icon)
+- Video play icon overlay for video posts
+
+### PostDetailView
+
+Full-screen post detail (Instagram-style):
+
+- Displays single post in feed-style layout
+- Author header (avatar + username)
+- Full-size image with AsyncImage
+- Like/comment action buttons (functional)
+- Caption with expand/collapse for long text
+- Like count display
+- "View all X comments" button (opens CommentsView sheet)
+- Timestamp display
+- **Lazy-loading**: Fetches like count, comment count, and "is liked" status on appear
+- **Optimistic UI**: Like button updates instantly, reverts on error
+- **NavigationStack integration**: Accessed via grid cell taps
 
 ### ProfileView
 
@@ -206,7 +229,27 @@ Queries run in parallel for performance.
 
 - UI implemented in ProfileHeaderView
 - Shows "Follow" for other users
-- Disabled in Phase 3 (functional in Phase 8)
+- Fully functional in Phase 8 with optimistic updates
+
+### Posts Grid Display
+
+**Fetching Posts:**
+- Fetches all posts for a specific user (ordered newest first)
+- Generates signed URLs for each post's media
+- Default limit: 100 posts
+- Runs in parallel with profile and stats fetching for performance
+
+**Grid Cell Interaction:**
+- Tap any post → Navigate to PostDetailView
+- Shows loading spinner while image loads
+- Shows error icon if image fails to load
+- Video posts show play icon overlay (top-right corner)
+
+**Detail View Loading:**
+- Shows post immediately with image and caption
+- Lazy-loads like count, comment count, and like status in background
+- All interactions work: like, comment, expand caption
+- Comments open in bottom sheet (consistent with feed)
 
 ---
 
@@ -243,6 +286,20 @@ This applies `.iso8601` strategy automatically.
 
 Without timestamp query param, iOS aggressively caches images. Users would see old avatars even after successful uploads. Always append `?t=timestamp` to image URLs when using same filename.
 
+### Posts Grid Integration
+
+**Key Decision:** Posts grid loads data from ProfileService, not FeedService:
+- FeedService filters posts by followed users (for feed display)
+- ProfileService fetches all posts for a specific user (for profile grid)
+- Both services generate signed URLs for media display
+- PostDetailView fetches fresh like/comment counts (not from grid cache)
+
+**Performance:**
+- Profile load fetches profile, stats, and posts in parallel
+- Grid uses LazyVGrid for efficient scrolling
+- Images load asynchronously with proper loading states
+- Detail view lazy-loads interaction counts for faster initial display
+
 ---
 
 ## Testing Results
@@ -276,6 +333,20 @@ Without timestamp query param, iOS aggressively caches images. Users would see o
 - Proper loading states
 - Empty states with helpful messages
 
+✅ **Posts Grid Display (Added October 25, 2025):**
+- Posts load correctly from Supabase
+- Images display with signed URLs (1 hour expiry)
+- Grid shows all user posts in 3-column layout
+- Empty state shows "No Posts Yet" with camera icon
+
+✅ **Post Detail View:**
+- Grid cells are tappable and navigate to detail view
+- Detail view shows full post with like/comment functionality
+- Like button works with optimistic updates
+- Comments open in bottom sheet
+- Caption expands/collapses for long text
+- All counts are accurate and update live
+
 ---
 
 ## Files Involved
@@ -289,11 +360,16 @@ Without timestamp query param, iOS aggressively caches images. Users would see o
 **View Layer:**
 - `/Views/Profile/ProfileView.swift` - Main screen
 - `/Views/Profile/ProfileHeaderView.swift` - Stats + avatar + bio
-- `/Views/Profile/ProfilePostsGridView.swift` - 3-column grid
+- `/Views/Profile/ProfilePostsGridView.swift` - 3-column grid with navigation
+- `/Views/Profile/PostDetailView.swift` - Full-screen post detail view
 - `/Views/Profile/EditProfileView.swift` - Edit form
 
 **Utilities:**
 - `/Utilities/ImageCompression.swift` - Avatar compression
+
+**Dependencies:**
+- LikeService.swift - Like operations for detail view
+- CommentService.swift - Comment operations for detail view
 
 ---
 
@@ -305,5 +381,23 @@ Without timestamp query param, iOS aggressively caches images. Users would see o
 
 ---
 
-**Status:** ✅ Complete
+**Status:** ✅ Complete (Including posts grid and detail view)
 **Next Phase:** Feed System (see `/docs/features/FEED_SYSTEM.md`)
+
+---
+
+## Update History
+
+**October 21, 2025** - Initial profile system implementation (Phase 3)
+- Profile viewing and editing
+- Avatar upload
+- Stats display
+- Follow button UI (functional in Phase 8)
+
+**October 25, 2025** - Posts grid and detail view (Phase 10 enhancement)
+- Added `fetchUserPosts` to ProfileService
+- ProfileViewModel loads posts in parallel with profile/stats
+- ProfilePostsGridView displays real images from Supabase
+- PostDetailView for full-screen post viewing
+- Like/comment functionality in detail view
+- Navigation from grid to detail view

@@ -10,6 +10,7 @@ import SwiftUI
 struct ProfilePostsGridView: View {
     let posts: [Post]
     let isCurrentUser: Bool
+    let currentUserId: UUID
 
     // Grid layout: 3 columns with 1pt spacing (Instagram style)
     private let columns = [
@@ -33,7 +34,11 @@ struct ProfilePostsGridView: View {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 1) {
                         ForEach(posts) { post in
-                            PostGridCell(post: post)
+                            NavigationLink {
+                                PostDetailView(post: post, currentUserId: currentUserId)
+                            } label: {
+                                PostGridCell(post: post)
+                            }
                         }
                     }
                 }
@@ -76,55 +81,103 @@ struct PostGridCell: View {
     let post: Post
 
     var body: some View {
-        GeometryReader { geometry in
-            // Placeholder for post thumbnail
-            // In Phase 6, this will load the actual image from Supabase Storage
+        // Load actual image from signed URL
+        if let mediaURL = post.mediaURL {
+            AsyncImage(url: mediaURL) { phase in
+                switch phase {
+                case .empty:
+                    Rectangle()
+                        .fill(Color.igBackgroundGray)
+                        .aspectRatio(1, contentMode: .fill)
+                        .overlay(
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .igTextSecondary))
+                        )
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(1, contentMode: .fill)
+                        .overlay(alignment: .topTrailing) {
+                            // Show video icon for video posts
+                            if post.mediaType == .video {
+                                Image(systemName: "play.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.white)
+                                    .shadow(color: .black.opacity(0.3), radius: 2)
+                                    .padding(8)
+                            }
+                        }
+                case .failure:
+                    Rectangle()
+                        .fill(Color.igBackgroundGray)
+                        .aspectRatio(1, contentMode: .fill)
+                        .overlay(
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundColor(.igTextSecondary)
+                        )
+                @unknown default:
+                    Rectangle()
+                        .fill(Color.igBackgroundGray)
+                        .aspectRatio(1, contentMode: .fill)
+                }
+            }
+            .aspectRatio(1, contentMode: .fill)
+            .clipped()
+        } else {
+            // Fallback if no URL
             Rectangle()
                 .fill(Color.igBackgroundGray)
                 .aspectRatio(1, contentMode: .fill)
                 .overlay(
-                    Image(systemName: post.mediaType == .video ? "play.circle.fill" : "photo")
+                    Image(systemName: "photo")
                         .foregroundColor(.igTextSecondary)
                 )
         }
-        .aspectRatio(1, contentMode: .fill)
-        .clipped()
     }
 }
 
 // MARK: - Preview
 
 #Preview {
-    VStack(spacing: 0) {
-        // Empty State Preview
-        ProfilePostsGridView(posts: [], isCurrentUser: true)
+    NavigationStack {
+        VStack(spacing: 0) {
+            // Empty State Preview
+            ProfilePostsGridView(
+                posts: [],
+                isCurrentUser: true,
+                currentUserId: UUID()
+            )
             .frame(height: 300)
 
-        Divider()
+            Divider()
 
-        // With Posts Preview
-        ProfilePostsGridView(
-            posts: [
-                Post(
-                    id: UUID(),
-                    author: UUID(),
-                    caption: "Test post 1",
-                    mediaKey: "test1.jpg",
-                    mediaType: .photo,
-                    createdAt: Date()
-                ),
-                Post(
-                    id: UUID(),
-                    author: UUID(),
-                    caption: "Test post 2",
-                    mediaKey: "test2.jpg",
-                    mediaType: .video,
-                    createdAt: Date()
-                )
-            ],
-            isCurrentUser: true
-        )
-        .frame(height: 300)
+            // With Posts Preview
+            ProfilePostsGridView(
+                posts: [
+                    Post(
+                        id: UUID(),
+                        author: UUID(),
+                        caption: "Test post 1",
+                        mediaKey: "test1.jpg",
+                        mediaType: .photo,
+                        createdAt: Date(),
+                        mediaURL: URL(string: "https://picsum.photos/600/600")
+                    ),
+                    Post(
+                        id: UUID(),
+                        author: UUID(),
+                        caption: "Test post 2",
+                        mediaKey: "test2.jpg",
+                        mediaType: .video,
+                        createdAt: Date(),
+                        mediaURL: URL(string: "https://picsum.photos/600/600?random=2")
+                    )
+                ],
+                isCurrentUser: true,
+                currentUserId: UUID()
+            )
+            .frame(height: 300)
+        }
+        .background(Color.igBackground)
     }
-    .background(Color.igBackground)
 }

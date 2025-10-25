@@ -58,10 +58,13 @@ struct ProfileView: View {
                         )
 
                         // Posts Grid
-                        ProfilePostsGridView(
-                            posts: [], // Empty for now - will be populated in Phase 6
-                            isCurrentUser: isCurrentUser
-                        )
+                        if let currentId = currentUserId {
+                            ProfilePostsGridView(
+                                posts: viewModel.posts,
+                                isCurrentUser: isCurrentUser,
+                                currentUserId: currentId
+                            )
+                        }
                     }
                 } else if let errorMessage = viewModel.errorMessage {
                     // Error State

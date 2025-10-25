@@ -23,6 +23,17 @@ final class CommentService {
 
     // MARK: - Comment Operations
 
+    /// Get comment count for a post
+    func getCommentCount(postId: UUID) async throws -> Int {
+        let response = try await client
+            .from("comments")
+            .select("*", head: true, count: .exact)
+            .eq("post_id", value: postId.uuidString)
+            .execute()
+
+        return response.count ?? 0
+    }
+
     /// Fetch all comments for a post (oldest first, Instagram-style)
     /// - Parameter postId: The post to fetch comments for
     /// - Returns: Array of comments with user profiles

@@ -7,7 +7,7 @@ Building a polished, private Instagram-style iOS app from scratch. This plan tra
 
 ## Current Status (October 24, 2025)
 
-### ✅ Completed Phases (1-8)
+### ✅ Completed Phases (1-9)
 
 **Phase 1: Foundation & Project Setup** → See `/docs/BACKEND_SETUP.md`
 - MVVM architecture, Supabase SDK, core services
@@ -44,28 +44,58 @@ Building a polished, private Instagram-style iOS app from scratch. This plan tra
 - ProfileStats mutation fix
 - Security advisors check passed
 
+**Phase 9: Realtime Updates** → See `/docs/features/REALTIME_UPDATES.md`
+- Supabase Realtime subscriptions for posts, likes, comments
+- Instagram-style "New posts available" banner
+- Real-time like/comment count updates from other users
+- Optimistic updates for current user (no double-counting)
+- Clean subscription lifecycle management
+
 ---
 
-## 🔜 Phase 9: Realtime Updates (NEXT)
+## ✅ Phase 9: Realtime Updates (COMPLETE)
 
 **Goal:** Feed updates in real-time when new posts are published
 
-### Tasks
+**Status:** ✅ Complete - All features working and tested
+
+### ✅ Completed Features
 1. **Supabase Realtime Subscription**
-   - Subscribe to `posts` table changes
-   - Filter for posts from followed users
+   - ✅ Enabled Realtime on posts, likes, comments tables
+   - ✅ Created RealtimeService with channel management
+   - ✅ Subscribed to INSERT/DELETE events using async sequences
 
 2. **FeedViewModel Realtime Integration**
-   - Listen for new posts
-   - Insert new posts at top of feed
-   - Show "New posts available" banner (tap to refresh)
+   - ✅ Listen for new posts with filtering
+   - ✅ Show "New posts available" banner (Instagram-style)
+   - ✅ Real-time like count updates (from other users)
+   - ✅ Real-time comment count updates
+   - ✅ Banner tap triggers refresh + scroll to top
+   - ✅ Optimistic updates for current user (no double-counting)
 
-3. **Push Notifications (Optional)**
-   - Set up APNs certificates
-   - Supabase Edge Function to send notifications
-   - Trigger on new likes, comments, follows
+3. **UI Components**
+   - ✅ NewPostsBanner component with slide-in animation
+   - ✅ FeedView integration with ZStack overlay
+   - ✅ Subscription lifecycle (setup/cleanup on appear/disappear)
 
-**Deliverable:** Feed updates dynamically when friends post, optional push notifications
+### 🐛 Issues Fixed
+1. **Async sequence error handling** - Added `for try await` with do-catch blocks
+2. **AnyJSON serialization crash** - Switched to direct dictionary access via `.value`
+3. **Double-counting bug** - Filter out current user's events (already handled optimistically)
+
+### ✅ Tested Successfully
+- ✅ New post banner appears when followed users post
+- ✅ Banner tap refreshes feed and scrolls to top
+- ✅ Like counts update in real-time from other users
+- ✅ Unlike events decrement counts correctly
+- ✅ Own actions handled optimistically (no realtime duplication)
+- ✅ Clean subscription lifecycle (no memory leaks)
+
+### ❌ Deferred to Future Phases
+- **Push Notifications** - Requires APNs setup, Edge Functions (Phase 10+)
+- **Comment realtime updates in CommentsView** - Currently only count updates in feed
+
+**Documentation:** See `/docs/features/REALTIME_UPDATES.md` for complete implementation details
 
 ---
 
@@ -200,5 +230,5 @@ See `/docs/BACKEND_SETUP.md` for complete project structure.
 ---
 
 **Last Updated:** October 24, 2025
-**Current Phase:** Phase 8 Complete ✅ → Phase 9 (Realtime Updates) is next
-**Next Milestone:** Implement realtime feed updates and push notifications (Phase 9) before adding video support
+**Current Phase:** Phase 9 Complete ✅ (Realtime Updates)
+**Next Milestone:** Phase 10 (Polish, Testing & Edge Cases) or Phase 6B (Video Support)

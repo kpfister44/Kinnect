@@ -20,6 +20,35 @@ final class LikeService {
 
     // MARK: - Like Operations
 
+    /// Like a post
+    func likePost(postId: UUID, userId: UUID) async throws {
+        print("❤️ Liking post \(postId)")
+        try await insertLike(postId: postId, userId: userId)
+    }
+
+    /// Unlike a post
+    func unlikePost(postId: UUID, userId: UUID) async throws {
+        print("💔 Unliking post \(postId)")
+        try await deleteLike(postId: postId, userId: userId)
+    }
+
+    /// Get like count for a post
+    func getLikeCount(postId: UUID) async throws -> Int {
+        let response = try await client
+            .from("likes")
+            .select("*", head: true, count: .exact)
+            .eq("post_id", value: postId.uuidString)
+            .execute()
+
+        return response.count ?? 0
+    }
+
+    /// Check if a post is liked by a specific user
+    func isPostLikedByUser(postId: UUID, userId: UUID) async throws -> Bool {
+        let existingLikes = try await checkLikeExists(postId: postId, userId: userId)
+        return !existingLikes.isEmpty
+    }
+
     /// Toggle like on a post. Returns true if now liked, false if now unliked.
     /// - Parameters:
     ///   - postId: The post to like/unlike
