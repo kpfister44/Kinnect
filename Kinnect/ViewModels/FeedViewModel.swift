@@ -25,6 +25,8 @@ final class FeedViewModel: ObservableObject {
     private let feedService: FeedService
     private let likeService: LikeService
     private let realtimeService: RealtimeService
+    private let postService: PostService
+    private let followService: FollowService
     let currentUserId: UUID // Exposed for comment sheet
 
     // MARK: - Pagination
@@ -39,14 +41,18 @@ final class FeedViewModel: ObservableObject {
     // MARK: - Initialization
 
     init(
-        feedService: FeedService = .shared,
-        likeService: LikeService = .shared,
-        realtimeService: RealtimeService = .shared,
+        feedService: FeedService? = nil,
+        likeService: LikeService? = nil,
+        realtimeService: RealtimeService? = nil,
+        postService: PostService? = nil,
+        followService: FollowService? = nil,
         currentUserId: UUID
     ) {
-        self.feedService = feedService
-        self.likeService = likeService
-        self.realtimeService = realtimeService
+        self.feedService = feedService ?? .shared
+        self.likeService = likeService ?? .shared
+        self.realtimeService = realtimeService ?? .shared
+        self.postService = postService ?? .shared
+        self.followService = followService ?? .shared
         self.currentUserId = currentUserId
     }
 
@@ -434,6 +440,79 @@ final class FeedViewModel: ObservableObject {
         await loadFeed()
 
         print("📡 Loaded new posts and scrolled to top")
+    }
+
+    // MARK: - Post Actions
+
+    /// Delete a post (optimistic UI)
+    func deletePost(_ post: Post) async {
+        print("🗑️ Initiating post deletion: \(post.id)")
+
+        // Step 1: Store original state for rollback
+        let originalPosts = posts
+
+        // Step 2: Optimistic update - remove from UI immediately
+        posts.removeAll(where: { $0.id == post.id })
+        print("✅ Post removed from UI")
+
+        // Step 3: Execute API call in background
+        do {
+            try await postService.deletePost(
+                postId: post.id,
+                userId: currentUserId,
+                mediaKey: post.mediaKey
+            )
+            print("✅ Post deletion successful")
+            // Keep UI state (post already removed)
+
+        } catch {
+            print("❌ Post deletion failed: \(error)")
+
+            // Step 4: Rollback on error
+            posts = originalPosts
+            errorMessage = error.localizedDescription
+            print("🔄 Rolled back post deletion")
+        }
+    }
+
+    /// Unfollow post author and remove their posts from feed
+    func unfollowPostAuthor(_ post: Post) async {
+        let authorId = post.author
+
+        guard let authorUsername = post.authorProfile?.username else {
+            print("❌ Cannot unfollow: post has no author profile")
+            return
+        }
+
+        print("👥 Unfollowing user: \(authorUsername)")
+
+        // Step 1: Store original state for rollback
+        let originalPosts = posts
+
+        // Step 2: Optimistic update - remove all posts from this author
+        posts.removeAll(where: { $0.author == authorId })
+        print("✅ Removed \(authorUsername)'s posts from feed")
+
+        // Step 3: Execute API call in background
+        do {
+            try await followService.unfollowUser(
+                followerId: currentUserId,
+                followeeId: authorId
+            )
+            print("✅ Unfollowed \(authorUsername)")
+            // Keep UI state (posts already removed)
+
+            // Step 4: Update followedUserIds for realtime filtering
+            followedUserIds.removeAll(where: { $0 == authorId })
+
+        } catch {
+            print("❌ Unfollow failed: \(error)")
+
+            // Step 5: Rollback on error
+            posts = originalPosts
+            errorMessage = error.localizedDescription
+            print("🔄 Rolled back unfollow")
+        }
     }
 
 }

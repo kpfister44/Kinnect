@@ -14,6 +14,8 @@ struct PostCellView: View {
 
     @State private var isExpanded = false
     @State private var showingComments = false
+    @State private var showDeleteConfirmation = false
+    @State private var showUnfollowConfirmation = false
 
     init(post: Post, mediaURL: URL?) {
         self.post = post
@@ -93,6 +95,26 @@ struct PostCellView: View {
                 }
             )
         }
+        .alert("Delete Post?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                Task {
+                    await feedViewModel.deletePost(post)
+                }
+            }
+        } message: {
+            Text("This post will be permanently deleted.")
+        }
+        .alert("Unfollow \(post.authorProfile?.username ?? "User")?", isPresented: $showUnfollowConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Unfollow", role: .destructive) {
+                Task {
+                    await feedViewModel.unfollowPostAuthor(post)
+                }
+            }
+        } message: {
+            Text("Their posts will no longer appear in your feed.")
+        }
     }
 
     // MARK: - View Components
@@ -151,23 +173,7 @@ struct PostCellView: View {
                     .foregroundColor(.igTextPrimary)
             }
 
-            Button {
-                // TODO: Share action
-            } label: {
-                Image(systemName: "paperplane")
-                    .font(.system(size: 24))
-                    .foregroundColor(.igTextPrimary)
-            }
-
             Spacer()
-
-            Button {
-                // TODO: Bookmark action
-            } label: {
-                Image(systemName: "bookmark")
-                    .font(.system(size: 24))
-                    .foregroundColor(.igTextPrimary)
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -207,7 +213,7 @@ struct PostCellView: View {
 
             // Three-dot menu
             Button {
-                // TODO: Show post options menu
+                handleThreeDotMenuTap()
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .semibold))
@@ -217,6 +223,19 @@ struct PostCellView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - Actions
+
+    private func handleThreeDotMenuTap() {
+        // Check if this is the current user's post
+        let isOwnPost = post.author == feedViewModel.currentUserId
+
+        if isOwnPost {
+            showDeleteConfirmation = true
+        } else {
+            showUnfollowConfirmation = true
+        }
     }
 }
 

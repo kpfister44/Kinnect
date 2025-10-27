@@ -15,10 +15,14 @@ struct PostDetailView: View {
     @State private var showingComments = false
     @State private var isExpanded = false
     @State private var isLoadingDetails = true
+    @State private var showDeleteConfirmation = false
+    @State private var showUnfollowConfirmation = false
     @Environment(\.dismiss) private var dismiss
 
     private let likeService = LikeService.shared
     private let commentService = CommentService.shared
+    private let postService = PostService.shared
+    private let followService = FollowService.shared
 
     init(post: Post, currentUserId: UUID) {
         self.initialPost = post
@@ -112,6 +116,26 @@ struct PostDetailView: View {
                 }
             )
         }
+        .alert("Delete Post?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                Task {
+                    await deletePost()
+                }
+            }
+        } message: {
+            Text("This post will be permanently deleted.")
+        }
+        .alert("Unfollow \(post.authorProfile?.username ?? "User")?", isPresented: $showUnfollowConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Unfollow", role: .destructive) {
+                Task {
+                    await unfollowPostAuthor()
+                }
+            }
+        } message: {
+            Text("Their posts will no longer appear in your feed.")
+        }
     }
 
     // MARK: - View Components
@@ -150,7 +174,7 @@ struct PostDetailView: View {
 
             // Three-dot menu
             Button {
-                // TODO: Show post options menu
+                handleThreeDotMenuTap()
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .semibold))
@@ -160,6 +184,17 @@ struct PostDetailView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    private func handleThreeDotMenuTap() {
+        // Check if this is the current user's post
+        let isOwnPost = post.author == currentUserId
+
+        if isOwnPost {
+            showDeleteConfirmation = true
+        } else {
+            showUnfollowConfirmation = true
+        }
     }
 
     private var imageView: some View {
@@ -220,25 +255,7 @@ struct PostDetailView: View {
                     .foregroundColor(.igTextPrimary)
             }
 
-            // Share Button
-            Button {
-                // TODO: Share action
-            } label: {
-                Image(systemName: "paperplane")
-                    .font(.system(size: 24))
-                    .foregroundColor(.igTextPrimary)
-            }
-
             Spacer()
-
-            // Bookmark Button
-            Button {
-                // TODO: Bookmark action
-            } label: {
-                Image(systemName: "bookmark")
-                    .font(.system(size: 24))
-                    .foregroundColor(.igTextPrimary)
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -309,6 +326,50 @@ struct PostDetailView: View {
             } else {
                 post.likeCount = max(0, post.likeCount - 1)
             }
+        }
+    }
+
+    private func deletePost() async {
+        print("🗑️ Deleting post: \(post.id)")
+
+        do {
+            try await postService.deletePost(
+                postId: post.id,
+                userId: currentUserId,
+                mediaKey: post.mediaKey
+            )
+            print("✅ Post deleted successfully")
+
+            // Dismiss the detail view after successful deletion
+            dismiss()
+        } catch {
+            print("❌ Post deletion failed: \(error)")
+            // TODO: Show error alert to user
+        }
+    }
+
+    private func unfollowPostAuthor() async {
+        let authorId = post.author
+
+        guard let authorUsername = post.authorProfile?.username else {
+            print("❌ Cannot unfollow: post has no author profile")
+            return
+        }
+
+        print("👥 Unfollowing user: \(authorUsername)")
+
+        do {
+            try await followService.unfollowUser(
+                followerId: currentUserId,
+                followeeId: authorId
+            )
+            print("✅ Unfollowed \(authorUsername)")
+
+            // Dismiss the detail view after successful unfollow
+            dismiss()
+        } catch {
+            print("❌ Unfollow failed: \(error)")
+            // TODO: Show error alert to user
         }
     }
 }

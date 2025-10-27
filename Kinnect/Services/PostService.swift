@@ -162,6 +162,55 @@ final class PostService {
 
         return signedURL
     }
+
+    // MARK: - Post Deletion
+
+    /// Delete a post (database record + storage file)
+    /// - Parameters:
+    ///   - postId: The post ID to delete
+    ///   - userId: The current user's ID (for authorization check)
+    ///   - mediaKey: The storage path for the media file
+    /// - Throws: PostServiceError if deletion fails
+    func deletePost(postId: UUID, userId: UUID, mediaKey: String) async throws {
+        print("🗑️ Deleting post: \(postId)")
+
+        // Step 1: Delete from database (also deletes likes/comments via CASCADE)
+        try await deletePostRecord(postId: postId, userId: userId)
+        print("✅ Post record deleted from database")
+
+        // Step 2: Delete from storage bucket
+        try await deletePostMedia(mediaKey: mediaKey)
+        print("✅ Post media deleted from storage")
+
+        print("✅ Post deleted successfully")
+    }
+
+    private func deletePostRecord(postId: UUID, userId: UUID) async throws {
+        do {
+            try await client
+                .from("posts")
+                .delete()
+                .eq("id", value: postId.uuidString)
+                .eq("author", value: userId.uuidString) // RLS check
+                .execute()
+        } catch {
+            print("❌ Database delete failed: \(error)")
+            throw PostServiceError.deleteFailed(error)
+        }
+    }
+
+    private func deletePostMedia(mediaKey: String) async throws {
+        do {
+            try await client.storage
+                .from("posts")
+                .remove(paths: [mediaKey])
+        } catch {
+            print("❌ Storage delete failed: \(error)")
+            // Non-fatal: database record is already deleted
+            // Storage cleanup can be done later via admin tools
+            print("⚠️ Continuing despite storage error")
+        }
+    }
 }
 
 // MARK: - Errors
@@ -170,6 +219,7 @@ enum PostServiceError: LocalizedError {
     case imageCompressionFailed
     case uploadFailed(Error)
     case databaseError(Error)
+    case deleteFailed(Error)
 
     var errorDescription: String? {
         switch self {
@@ -179,6 +229,8 @@ enum PostServiceError: LocalizedError {
             return "Upload failed: \(error.localizedDescription)"
         case .databaseError(let error):
             return "Failed to create post: \(error.localizedDescription)"
+        case .deleteFailed(let error):
+            return "Failed to delete post: \(error.localizedDescription)"
         }
     }
 }

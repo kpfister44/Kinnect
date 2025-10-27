@@ -377,6 +377,17 @@ Detailed documentation for completed features is available in `/docs/`. Referenc
 
 ---
 
+**`/docs/features/POST_MENU_ACTIONS.md`** - Post Menu Actions (Delete & Unfollow)
+- PostService delete methods with CASCADE cleanup
+- FeedViewModel delete/unfollow with optimistic UI
+- Context-aware three-dot menu (delete own posts, unfollow others)
+- PostCellView and PostDetailView integration
+- Confirmation dialogs with error handling
+
+**When to reference:** Post deletion, unfollowing from feed, three-dot menu, optimistic UI with rollback
+
+---
+
 ## Common Issues & Solutions
 
 ### PhotosPicker Sheet Presentation Race Condition
