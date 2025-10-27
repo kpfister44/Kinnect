@@ -343,6 +343,40 @@ Detailed documentation for completed features is available in `/docs/`. Referenc
 
 ---
 
+**`/docs/features/FOLLOWING_SYSTEM.md`** - User Search & Follow/Unfollow
+- UserSearchService, FollowService
+- Real-time search with debouncing
+- Follow/unfollow with optimistic UI
+- Followers/Following lists
+- Feed filtering by followed users
+
+**When to reference:** User search, follow relationships, follower lists, feed filtering
+
+---
+
+**`/docs/features/REALTIME_UPDATES.md`** - Live Feed Updates
+- RealtimeService with Supabase channels
+- "New posts available" banner
+- Real-time like/comment count updates
+- Optimistic UI patterns (no double-counting)
+- Clean subscription lifecycle
+
+**When to reference:** Realtime subscriptions, live updates, subscription management
+
+---
+
+**`/docs/features/ACTIVITY_SYSTEM.md`** - Activity Tab (Notifications)
+- ActivityService, ActivityViewModel
+- Database triggers for auto-creation
+- Activity grouping (likes on same post)
+- Real-time badge updates
+- Mark as read functionality
+- Navigation to profiles
+
+**When to reference:** Activity notifications, badge counts, activity grouping, database triggers
+
+---
+
 ## Common Issues & Solutions
 
 ### PhotosPicker Sheet Presentation Race Condition

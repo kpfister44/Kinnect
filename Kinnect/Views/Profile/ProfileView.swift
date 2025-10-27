@@ -22,12 +22,25 @@ struct ProfileView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.igBackground
-                    .ignoresSafeArea()
+        Group {
+            if userId == nil {
+                // Root view in tab bar - needs NavigationStack
+                NavigationStack {
+                    profileContent
+                }
+            } else {
+                // Navigation destination - don't create nested NavigationStack
+                profileContent
+            }
+        }
+    }
 
-                if viewModel.isLoading && viewModel.profile == nil {
+    private var profileContent: some View {
+        ZStack {
+            Color.igBackground
+                .ignoresSafeArea()
+
+            if viewModel.isLoading && viewModel.profile == nil {
                     // Loading State
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .igTextSecondary))
@@ -139,7 +152,6 @@ struct ProfileView: View {
                 await loadProfile()
             }
         }
-    }
 
     // MARK: - Computed Properties
 

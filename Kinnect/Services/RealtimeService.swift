@@ -90,6 +90,26 @@ final class RealtimeService {
         return await channel.postgresChange(DeleteAction.self, schema: "public", table: "comments")
     }
 
+    // MARK: - Activity Subscriptions
+
+    /// Subscribe to new activity insertions
+    /// - Parameters:
+    ///   - channel: The Realtime channel to subscribe on
+    /// - Returns: Async stream of insert actions
+    func subscribeToActivityInserts(channel: RealtimeChannelV2) async -> some AsyncSequence {
+        print("📡 Subscribing to activities INSERT events")
+        return await channel.postgresChange(InsertAction.self, schema: "public", table: "activities")
+    }
+
+    /// Create and configure a Realtime channel for activity notifications
+    /// - Parameter userId: Current user's ID
+    /// - Returns: Configured RealtimeChannelV2 (not yet subscribed)
+    func createActivityChannel(userId: UUID) -> RealtimeChannelV2 {
+        let channelName = "activity:\(userId.uuidString)"
+        print("📡 Creating Realtime channel: \(channelName)")
+        return client.realtimeV2.channel(channelName)
+    }
+
     // MARK: - Connection Management
 
     /// Subscribe to all configured callbacks and connect the channel
@@ -155,5 +175,28 @@ struct RealtimeCommentEvent: Decodable {
         case id
         case postId = "post_id"
         case userId = "user_id"
+    }
+}
+
+/// Represents an activity insert event from Realtime
+struct RealtimeActivityInsert: Decodable {
+    let id: UUID
+    let userId: UUID
+    let actorId: UUID
+    let activityType: String
+    let postId: UUID?
+    let commentId: UUID?
+    let isRead: Bool
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case actorId = "actor_id"
+        case activityType = "activity_type"
+        case postId = "post_id"
+        case commentId = "comment_id"
+        case isRead = "is_read"
+        case createdAt = "created_at"
     }
 }

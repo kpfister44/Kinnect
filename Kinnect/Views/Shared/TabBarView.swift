@@ -10,6 +10,7 @@ import SwiftUI
 struct TabBarView: View {
     let currentUserId: UUID
     @State private var selectedTab: Tab = .feed
+    @StateObject private var activityViewModel: ActivityViewModel
 
     enum Tab {
         case feed
@@ -17,6 +18,15 @@ struct TabBarView: View {
         case upload
         case activity
         case profile
+    }
+
+    init(currentUserId: UUID) {
+        self.currentUserId = currentUserId
+        _activityViewModel = StateObject(wrappedValue: ActivityViewModel(currentUserId: currentUserId))
+    }
+
+    private var activityBadgeLabel: Text? {
+        activityViewModel.unreadCount > 0 ? Text("\(activityViewModel.unreadCount)") : nil
     }
 
     var body: some View {
@@ -46,12 +56,14 @@ struct TabBarView: View {
                 .tag(Tab.upload)
 
             // Activity Tab
-            ActivityView()
+            ActivityView(currentUserId: currentUserId)
+                .environmentObject(activityViewModel)
                 .tabItem {
                     Image(systemName: selectedTab == .activity ? "heart.fill" : "heart")
                     Text("Activity")
                 }
                 .tag(Tab.activity)
+                .badge(activityBadgeLabel)
 
             // Profile Tab
             ProfileView()

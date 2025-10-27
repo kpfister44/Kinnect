@@ -38,9 +38,22 @@
 		217BF52A2EA2A55100010E2E /* KinnectUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KinnectUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		21937DBB2EAE50ED00DB3943 /* Exceptions for "Kinnect" folder in "Kinnect" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Views/Shared/ActivityView.swift,
+			);
+			target = 217BF5122EA2A55000010E2E /* Kinnect */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		217BF5152EA2A55000010E2E /* Kinnect */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				21937DBB2EAE50ED00DB3943 /* Exceptions for "Kinnect" folder in "Kinnect" target */,
+			);
 			path = Kinnect;
 			sourceTree = "<group>";
 		};

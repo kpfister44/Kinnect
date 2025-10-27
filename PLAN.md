@@ -5,9 +5,9 @@ Building a polished, private Instagram-style iOS app from scratch. This plan tra
 
 ---
 
-## Current Status (October 24, 2025)
+## Current Status (October 27, 2025)
 
-### ✅ Completed Phases (1-9)
+### ✅ Completed Phases (1-9.5)
 
 **Phase 1: Foundation & Project Setup** → See `/docs/BACKEND_SETUP.md`
 - MVVM architecture, Supabase SDK, core services
@@ -50,6 +50,14 @@ Building a polished, private Instagram-style iOS app from scratch. This plan tra
 - Real-time like/comment count updates from other users
 - Optimistic updates for current user (no double-counting)
 - Clean subscription lifecycle management
+
+**Phase 9.5: Activity System (Notifications)** → See `/docs/features/ACTIVITY_SYSTEM.md`
+- Activities table with database triggers for auto-creation
+- Activity grouping (multiple likes on same post)
+- Real-time badge updates on tab bar
+- Mark as read (individual and all)
+- Navigation to user profiles
+- Swipe-to-delete and pull-to-refresh
 
 ---
 
@@ -96,6 +104,58 @@ Building a polished, private Instagram-style iOS app from scratch. This plan tra
 - **Comment realtime updates in CommentsView** - Currently only count updates in feed
 
 **Documentation:** See `/docs/features/REALTIME_UPDATES.md` for complete implementation details
+
+---
+
+## ✅ Phase 9.5: Activity System (COMPLETE)
+
+**Goal:** Instagram-style activity/notifications tab for likes, comments, and follows
+
+**Status:** ✅ Complete - All features working and tested (October 27, 2025)
+
+### ✅ Completed Features
+1. **Database Layer**
+   - ✅ Activities table with proper indexes and RLS
+   - ✅ 6 database triggers for auto-creation/cleanup
+   - ✅ TIMESTAMPTZ format for dates
+   - ✅ Security-hardened triggers (SET search_path = public)
+
+2. **Swift Implementation**
+   - ✅ ActivityService (fetch, mark read, delete, unread count)
+   - ✅ ActivityViewModel with realtime subscriptions
+   - ✅ ActivityView with empty/loading/error states
+   - ✅ ActivityRowView with grouped display
+
+3. **Key Features**
+   - ✅ Activity grouping (multiple likes → "username and 2 others")
+   - ✅ Real-time badge updates on tab bar
+   - ✅ Mark as read (single activity and all)
+   - ✅ Navigation to user profiles
+   - ✅ Badge disappears when no unread items
+   - ✅ Swipe-to-delete and pull-to-refresh (implemented)
+
+### 🐛 Issues Fixed
+1. **Grouped activity mark-as-read** - Only first activity was marked; now all in group
+2. **Nested NavigationStack** - ProfileView navigation broken; fixed with conditional stack
+3. **Badge display** - Red circle persisted with 0 unread; now uses `.badge(Text?)` with nil
+4. **Xcode indexing errors** - Resolved with clean build + DerivedData deletion
+
+### ✅ Tested Successfully
+- ✅ Activity creation via database triggers
+- ✅ Activity grouping display
+- ✅ Real-time badge updates (0 → 5 immediately)
+- ✅ Grouped activity mark-as-read (all blue dots disappear)
+- ✅ Navigation to profiles
+- ✅ Badge count accuracy and visibility
+- ✅ "Mark all read" button
+
+### ❌ Deferred to Future
+- **Post navigation** - Activities navigate to profile, not post (acceptable for MVP)
+- **Comment body display** - Shows "..." instead of actual comment text
+- **Swipe-to-delete testing** - Implemented but not thoroughly tested
+- **Pull-to-refresh testing** - Implemented but not thoroughly tested
+
+**Documentation:** See `/docs/features/ACTIVITY_SYSTEM.md` for complete implementation details
 
 ---
 
@@ -229,6 +289,23 @@ See `/docs/BACKEND_SETUP.md` for complete project structure.
 
 ---
 
-**Last Updated:** October 24, 2025
-**Current Phase:** Phase 9 Complete ✅ (Realtime Updates)
+**Last Updated:** October 27, 2025
+**Current Phase:** Phase 9.5 Complete ✅ (Activity System)
 **Next Milestone:** Phase 10 (Polish, Testing & Edge Cases) or Phase 6B (Video Support)
+
+---
+
+## Summary of MVP Features
+
+**Kinnect now has a fully functional Instagram-style experience:**
+
+✅ Authentication (Sign in with Apple)
+✅ User Profiles (avatars, stats, posts grid)
+✅ Photo Upload (compression, caption)
+✅ Feed (pagination, signed URLs)
+✅ Likes & Comments (optimistic UI, bottom sheets)
+✅ Follow System (search, followers/following)
+✅ Real-time Updates (new posts banner, live counts)
+✅ Activity/Notifications (badge, grouping, mark as read)
+
+**Next Steps:** Polish UI, add video support, or move to production testing
