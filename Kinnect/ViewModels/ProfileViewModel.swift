@@ -21,16 +21,91 @@ final class ProfileViewModel: ObservableObject {
     @Published var isFollowing: Bool = false
     @Published var isFollowOperationInProgress: Bool = false
 
+    // MARK: - Cache State (Phase 10)
+
+    // Cache for multiple users' profiles
+    private var profileCache: [UUID: CachedProfileData] = [:]
+    private let cacheTTL: TimeInterval = 45 * 60 // 45 minutes (matches Feed TTL)
+
     // MARK: - Private Properties
 
     private let profileService: ProfileService
     private let followService: FollowService
+
+    // MARK: - Cached Profile Data Structure
+
+    struct CachedProfileData {
+        let profile: Profile
+        let posts: [Post]
+        let stats: ProfileStats
+        let timestamp: Date
+    }
 
     // MARK: - Initialization
 
     init(profileService: ProfileService = ProfileService.shared, followService: FollowService = FollowService.shared) {
         self.profileService = profileService
         self.followService = followService
+
+        // Observe logout notifications to clear cache (Phase 10)
+        setupLogoutObserver()
+    }
+
+    deinit {
+        // Remove notification observer
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    // MARK: - Cache Helper Methods
+
+    /// Check if cached profile is valid (not expired)
+    private func isCacheValid(for userId: UUID) -> Bool {
+        guard let cached = profileCache[userId] else { return false }
+        let age = Date().timeIntervalSince(cached.timestamp)
+        return age < cacheTTL
+    }
+
+    /// Calculate cache age in seconds
+    private func cacheAge(for userId: UUID) -> Int {
+        guard let cached = profileCache[userId] else { return 0 }
+        return Int(Date().timeIntervalSince(cached.timestamp))
+    }
+
+    /// Invalidate (clear) cache for specific user
+    func invalidateCache(for userId: UUID) {
+        profileCache.removeValue(forKey: userId)
+        print("🗑️ Cache invalidated for user: \(userId)")
+    }
+
+    /// Invalidate all cached profiles
+    func invalidateAllCaches() {
+        profileCache.removeAll()
+        print("🗑️ All profile caches cleared")
+    }
+
+    /// Update cache with fresh profile data
+    private func updateCache(userId: UUID, profile: Profile, posts: [Post], stats: ProfileStats) {
+        let cachedData = CachedProfileData(
+            profile: profile,
+            posts: posts,
+            stats: stats,
+            timestamp: Date()
+        )
+        profileCache[userId] = cachedData
+        print("💾 Profile cache updated for user: \(userId)")
+    }
+
+    // MARK: - Logout Observer
+
+    private func setupLogoutObserver() {
+        NotificationCenter.default.addObserver(
+            forName: .userDidLogout,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.invalidateAllCaches()
+            print("🗑️ All profile caches cleared on logout")
+        }
     }
 
     // MARK: - Profile Loading
@@ -39,7 +114,40 @@ final class ProfileViewModel: ObservableObject {
     /// - Parameters:
     ///   - userId: The user ID to load
     ///   - currentUserId: The current user's ID (for checking follow status)
-    func loadProfile(userId: UUID, currentUserId: UUID? = nil) async {
+    ///   - forceRefresh: Force refresh from API, bypassing cache
+    func loadProfile(userId: UUID, currentUserId: UUID? = nil, forceRefresh: Bool = false) async {
+        // If force refresh requested, skip cache
+        if forceRefresh {
+            print("🔄 Force refresh - bypassing cache for user: \(userId)")
+            await fetchFreshProfile(userId: userId, currentUserId: currentUserId)
+            return
+        }
+
+        // Check if cache is valid
+        if isCacheValid(for: userId) {
+            // Use cached data
+            if let cached = profileCache[userId] {
+                self.profile = cached.profile
+                self.stats = cached.stats
+                self.posts = cached.posts
+                print("✅ Loaded profile from cache (age: \(cacheAge(for: userId))s)")
+
+                // Still check follow status if viewing someone else's profile
+                if let currentUserId = currentUserId, currentUserId != userId {
+                    await checkFollowStatus(currentUserId: currentUserId, profileUserId: userId)
+                }
+
+                return
+            }
+        }
+
+        // Cache expired or empty - fetch fresh
+        print("🌐 Cache miss - fetching fresh profile for user: \(userId)")
+        await fetchFreshProfile(userId: userId, currentUserId: currentUserId)
+    }
+
+    /// Fetch fresh profile data from API
+    private func fetchFreshProfile(userId: UUID, currentUserId: UUID? = nil) async {
         isLoading = true
         errorMessage = nil
 
@@ -60,6 +168,9 @@ final class ProfileViewModel: ObservableObject {
                 updatedPost.authorProfile = fetchedProfile
                 return updatedPost
             }
+
+            // Update cache with fresh data
+            updateCache(userId: userId, profile: fetchedProfile, posts: self.posts, stats: fetchedStats)
 
             // Check follow status if viewing someone else's profile
             if let currentUserId = currentUserId, currentUserId != userId {
@@ -94,6 +205,10 @@ final class ProfileViewModel: ObservableObject {
             )
 
             self.profile = updatedProfile
+
+            // Invalidate cache for this user since profile changed
+            invalidateCache(for: userId)
+            print("🔄 Profile updated - cache invalidated")
         } catch {
             // Check for username uniqueness error
             if error.localizedDescription.contains("duplicate") ||
@@ -130,7 +245,10 @@ final class ProfileViewModel: ObservableObject {
             )
 
             self.profile = updatedProfile
-            print("✅ ProfileViewModel: Avatar upload complete")
+
+            // Invalidate cache for this user since avatar changed
+            invalidateCache(for: userId)
+            print("✅ ProfileViewModel: Avatar upload complete - cache invalidated")
         } catch let error as ProfileServiceError {
             errorMessage = error.errorDescription
             print("❌ ProfileViewModel: ProfileServiceError: \(error)")
@@ -193,6 +311,18 @@ final class ProfileViewModel: ObservableObject {
                 currentStats.followersCount = max(0, currentStats.followersCount - 1)
             }
             stats = currentStats
+
+            // Also update cache optimistically
+            if let cached = profileCache[profileUserId] {
+                // Create new cache entry with updated stats
+                let updatedCache = CachedProfileData(
+                    profile: cached.profile,
+                    posts: cached.posts,
+                    stats: currentStats,
+                    timestamp: cached.timestamp
+                )
+                profileCache[profileUserId] = updatedCache
+            }
         }
 
         do {
@@ -207,11 +337,34 @@ final class ProfileViewModel: ObservableObject {
 
             // Refresh stats to get accurate count from server
             await refreshStats(userId: profileUserId)
+
+            // Update cache with fresh stats
+            if let freshStats = stats, let cached = profileCache[profileUserId] {
+                let updatedCache = CachedProfileData(
+                    profile: cached.profile,
+                    posts: cached.posts,
+                    stats: freshStats,
+                    timestamp: cached.timestamp
+                )
+                profileCache[profileUserId] = updatedCache
+            }
         } catch {
             // Revert on error
             print("❌ Follow toggle error: \(error)")
             isFollowing = previousFollowState
             stats = previousStats
+
+            // Revert cache as well
+            if let previousStats = previousStats, let cached = profileCache[profileUserId] {
+                let revertedCache = CachedProfileData(
+                    profile: cached.profile,
+                    posts: cached.posts,
+                    stats: previousStats,
+                    timestamp: cached.timestamp
+                )
+                profileCache[profileUserId] = revertedCache
+            }
+
             errorMessage = "Failed to update follow status. Please try again."
         }
 

@@ -21,6 +21,13 @@ final class FeedViewModel: ObservableObject {
     @Published var pendingNewPostsCount: Int = 0
     @Published var showNewPostsBanner: Bool = false
 
+    // MARK: - Cache State (Phase 10)
+    @Published var isCacheStale: Bool = false
+    private var cachedPosts: [Post] = []
+    private var cacheTimestamp: Date?
+    private let cacheTTL: TimeInterval = 45 * 60 // 45 minutes (under signed URL 1hr expiry)
+    private let staleCacheThreshold: TimeInterval = 5 * 60 // 5 minutes
+
     // MARK: - Dependencies
     private let feedService: FeedService
     private let likeService: LikeService
@@ -54,6 +61,27 @@ final class FeedViewModel: ObservableObject {
         self.postService = postService ?? .shared
         self.followService = followService ?? .shared
         self.currentUserId = currentUserId
+
+        // Observe logout notifications to clear cache (Phase 10)
+        setupLogoutObserver()
+    }
+
+    deinit {
+        // Remove notification observer
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    // MARK: - Logout Observer
+
+    private func setupLogoutObserver() {
+        NotificationCenter.default.addObserver(
+            forName: .userDidLogout,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.invalidateCache()
+            print("🗑️ Cache cleared on logout")
+        }
     }
 
     // MARK: - Loading State
@@ -65,14 +93,76 @@ final class FeedViewModel: ObservableObject {
         case error
     }
 
+    // MARK: - Cache Helper Methods
+
+    /// Check if cache is valid (not expired)
+    private func isCacheValidCheck() -> Bool {
+        guard let timestamp = cacheTimestamp else { return false }
+        let age = Date().timeIntervalSince(timestamp)
+        return age < cacheTTL
+    }
+
+    /// Check if cache is stale (old but still valid)
+    private func isCacheStaleCheck() -> Bool {
+        guard let timestamp = cacheTimestamp else { return false }
+        let age = Date().timeIntervalSince(timestamp)
+        return age >= staleCacheThreshold && age < cacheTTL
+    }
+
+    /// Calculate cache age in seconds
+    private func cacheAge() -> Int {
+        guard let timestamp = cacheTimestamp else { return 0 }
+        return Int(Date().timeIntervalSince(timestamp))
+    }
+
+    /// Invalidate (clear) cache
+    func invalidateCache() {
+        cachedPosts = []
+        cacheTimestamp = nil
+        isCacheStale = false
+        print("🗑️ Cache invalidated")
+    }
+
+    /// Update cache with fresh posts
+    private func updateCache(with posts: [Post]) {
+        cachedPosts = posts
+        cacheTimestamp = Date()
+        isCacheStale = false
+        print("💾 Cache updated with \(posts.count) posts")
+    }
+
     // MARK: - Public Methods
 
     /// Load the feed (called on view appear)
-    func loadFeed() async {
-        // Reset pagination
+    func loadFeed(forceRefresh: Bool = false) async {
+        // If force refresh requested, skip cache
+        if forceRefresh {
+            print("🔄 Force refresh - bypassing cache")
+            currentOffset = 0
+            canLoadMore = true
+            await fetchPosts(isRefresh: true)
+            return
+        }
+
+        // Check if cache is valid
+        if isCacheValidCheck() {
+            // Use cached data
+            posts = cachedPosts
+            state = .loaded
+            isCacheStale = isCacheStaleCheck()
+
+            print("✅ Loaded feed from cache (age: \(cacheAge())s, stale: \(isCacheStale))")
+
+            // Restore pagination state based on cached posts
+            currentOffset = cachedPosts.count
+            canLoadMore = cachedPosts.count >= pageSize
+            return
+        }
+
+        // Cache expired or empty - fetch fresh
+        print("🌐 Cache miss - fetching fresh feed")
         currentOffset = 0
         canLoadMore = true
-
         await fetchPosts(isRefresh: true)
     }
 
@@ -112,8 +202,12 @@ final class FeedViewModel: ObservableObject {
 
             if isRefresh {
                 posts = newPosts
+                // Update cache on initial refresh
+                updateCache(with: newPosts)
             } else {
                 posts.append(contentsOf: newPosts)
+                // Update cache with full list after pagination
+                updateCache(with: posts)
             }
 
             // Update pagination
@@ -152,6 +246,9 @@ final class FeedViewModel: ObservableObject {
             return
         }
 
+        // Find post in cache as well
+        let cacheIndex = cachedPosts.firstIndex(where: { $0.id == postID })
+
         // Store previous state for rollback if needed
         let previousLikedState = posts[index].isLikedByCurrentUser
         let previousLikeCount = posts[index].likeCount
@@ -159,6 +256,12 @@ final class FeedViewModel: ObservableObject {
         // Optimistic update (immediate UI feedback)
         posts[index].isLikedByCurrentUser.toggle()
         posts[index].likeCount += posts[index].isLikedByCurrentUser ? 1 : -1
+
+        // Also update cache optimistically
+        if let cacheIndex = cacheIndex {
+            cachedPosts[cacheIndex].isLikedByCurrentUser.toggle()
+            cachedPosts[cacheIndex].likeCount += cachedPosts[cacheIndex].isLikedByCurrentUser ? 1 : -1
+        }
 
         // Perform async like operation
         Task {
@@ -173,6 +276,12 @@ final class FeedViewModel: ObservableObject {
                     print("⚠️ Optimistic update mismatch, correcting...")
                     posts[index].isLikedByCurrentUser = newLikedState
                     posts[index].likeCount = previousLikeCount + (newLikedState ? 1 : -1)
+
+                    // Correct cache as well
+                    if let cacheIndex = cacheIndex {
+                        cachedPosts[cacheIndex].isLikedByCurrentUser = newLikedState
+                        cachedPosts[cacheIndex].likeCount = previousLikeCount + (newLikedState ? 1 : -1)
+                    }
                 }
 
                 print("✅ Like toggled successfully: \(newLikedState ? "liked" : "unliked")")
@@ -182,6 +291,12 @@ final class FeedViewModel: ObservableObject {
                 // Revert optimistic update on error
                 posts[index].isLikedByCurrentUser = previousLikedState
                 posts[index].likeCount = previousLikeCount
+
+                // Revert cache as well
+                if let cacheIndex = cacheIndex {
+                    cachedPosts[cacheIndex].isLikedByCurrentUser = previousLikedState
+                    cachedPosts[cacheIndex].likeCount = previousLikeCount
+                }
 
                 // Show error to user
                 errorMessage = "Failed to \(previousLikedState ? "unlike" : "like") post. Please try again."
@@ -375,12 +490,15 @@ final class FeedViewModel: ObservableObject {
             return
         }
 
-        guard let index = posts.firstIndex(where: { $0.id == postId }) else {
-            return // Post not in current feed
+        // Update posts array
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].likeCount += 1
         }
 
-        // Increment like count for other users only
-        posts[index].likeCount += 1
+        // Update cache as well
+        if let cacheIndex = cachedPosts.firstIndex(where: { $0.id == postId }) {
+            cachedPosts[cacheIndex].likeCount += 1
+        }
 
         print("📡 Like added to post \(postId) by user \(userId)")
     }
@@ -394,12 +512,15 @@ final class FeedViewModel: ObservableObject {
             return
         }
 
-        guard let index = posts.firstIndex(where: { $0.id == postId }) else {
-            return // Post not in current feed
+        // Update posts array
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].likeCount = max(0, posts[index].likeCount - 1)
         }
 
-        // Decrement like count for other users only (ensure it doesn't go negative)
-        posts[index].likeCount = max(0, posts[index].likeCount - 1)
+        // Update cache as well
+        if let cacheIndex = cachedPosts.firstIndex(where: { $0.id == postId }) {
+            cachedPosts[cacheIndex].likeCount = max(0, cachedPosts[cacheIndex].likeCount - 1)
+        }
 
         print("📡 Like removed from post \(postId) by user \(userId)")
     }
@@ -407,12 +528,15 @@ final class FeedViewModel: ObservableObject {
     /// Handle comment insert event
     @MainActor
     private func handleCommentInsertEvent(postId: UUID) async {
-        guard let index = posts.firstIndex(where: { $0.id == postId }) else {
-            return // Post not in current feed
+        // Update posts array
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].commentCount += 1
         }
 
-        // Increment comment count
-        posts[index].commentCount += 1
+        // Update cache as well
+        if let cacheIndex = cachedPosts.firstIndex(where: { $0.id == postId }) {
+            cachedPosts[cacheIndex].commentCount += 1
+        }
 
         print("📡 Comment added to post \(postId)")
     }
@@ -420,12 +544,15 @@ final class FeedViewModel: ObservableObject {
     /// Handle comment delete event
     @MainActor
     private func handleCommentDeleteEvent(postId: UUID) async {
-        guard let index = posts.firstIndex(where: { $0.id == postId }) else {
-            return // Post not in current feed
+        // Update posts array
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].commentCount = max(0, posts[index].commentCount - 1)
         }
 
-        // Decrement comment count (ensure it doesn't go negative)
-        posts[index].commentCount = max(0, posts[index].commentCount - 1)
+        // Update cache as well
+        if let cacheIndex = cachedPosts.firstIndex(where: { $0.id == postId }) {
+            cachedPosts[cacheIndex].commentCount = max(0, cachedPosts[cacheIndex].commentCount - 1)
+        }
 
         print("📡 Comment removed from post \(postId)")
     }
@@ -437,9 +564,22 @@ final class FeedViewModel: ObservableObject {
         showNewPostsBanner = false
 
         // Refresh feed
-        await loadFeed()
+        await loadFeed(forceRefresh: true)
 
         print("📡 Loaded new posts and scrolled to top")
+    }
+
+    /// Refresh feed from stale cache banner (Phase 10)
+    func refreshFeedFromBanner() async {
+        print("🔄 User tapped stale cache banner - fetching fresh feed")
+
+        // Hide stale banner
+        isCacheStale = false
+
+        // Force refresh to bypass cache
+        await loadFeed(forceRefresh: true)
+
+        print("✅ Feed refreshed from stale cache banner")
     }
 
     // MARK: - Post Actions
@@ -450,10 +590,12 @@ final class FeedViewModel: ObservableObject {
 
         // Step 1: Store original state for rollback
         let originalPosts = posts
+        let originalCachedPosts = cachedPosts
 
         // Step 2: Optimistic update - remove from UI immediately
         posts.removeAll(where: { $0.id == post.id })
-        print("✅ Post removed from UI")
+        cachedPosts.removeAll(where: { $0.id == post.id })
+        print("✅ Post removed from UI and cache")
 
         // Step 3: Execute API call in background
         do {
@@ -470,6 +612,7 @@ final class FeedViewModel: ObservableObject {
 
             // Step 4: Rollback on error
             posts = originalPosts
+            cachedPosts = originalCachedPosts
             errorMessage = error.localizedDescription
             print("🔄 Rolled back post deletion")
         }
@@ -488,10 +631,12 @@ final class FeedViewModel: ObservableObject {
 
         // Step 1: Store original state for rollback
         let originalPosts = posts
+        let originalCachedPosts = cachedPosts
 
         // Step 2: Optimistic update - remove all posts from this author
         posts.removeAll(where: { $0.author == authorId })
-        print("✅ Removed \(authorUsername)'s posts from feed")
+        cachedPosts.removeAll(where: { $0.author == authorId })
+        print("✅ Removed \(authorUsername)'s posts from feed and cache")
 
         // Step 3: Execute API call in background
         do {
@@ -510,6 +655,7 @@ final class FeedViewModel: ObservableObject {
 
             // Step 5: Rollback on error
             posts = originalPosts
+            cachedPosts = originalCachedPosts
             errorMessage = error.localizedDescription
             print("🔄 Rolled back unfollow")
         }

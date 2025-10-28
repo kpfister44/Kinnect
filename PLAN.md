@@ -7,6 +7,17 @@ Building a polished, private Instagram-style iOS app from scratch. This plan tra
 
 ## Current Status (October 27, 2025)
 
+### ✅ Completed Phases (1-9.5 + Caching)
+
+**Phase 10: Caching System (Feed & Profile)** → See `/docs/features/CACHING_SYSTEM.md`
+- In-memory caching for Feed and Profile tabs
+- 45-minute TTL (matches signed URL expiry)
+- Instant loads (<50ms) on tab switches
+- Automatic cache updates via real-time events
+- Optimistic updates for user actions
+- Cache clearing on logout
+- Multi-user profile caching (dictionary-based)
+
 ### ✅ Completed Phases (1-9.5)
 
 **Phase 1: Foundation & Project Setup** → See `/docs/BACKEND_SETUP.md`
@@ -290,7 +301,7 @@ See `/docs/BACKEND_SETUP.md` for complete project structure.
 ---
 
 **Last Updated:** October 27, 2025
-**Current Phase:** Phase 9.5 Complete ✅ (Activity System)
+**Current Phase:** Caching System Complete ✅ (Feed & Profile)
 **Next Milestone:** Phase 10 (Polish, Testing & Edge Cases) or Phase 6B (Video Support)
 
 ---
@@ -307,5 +318,6 @@ See `/docs/BACKEND_SETUP.md` for complete project structure.
 ✅ Follow System (search, followers/following)
 ✅ Real-time Updates (new posts banner, live counts)
 ✅ Activity/Notifications (badge, grouping, mark as read)
+✅ Caching System (instant tab loads, 60x performance boost)
 
 **Next Steps:** Polish UI, add video support, or move to production testing

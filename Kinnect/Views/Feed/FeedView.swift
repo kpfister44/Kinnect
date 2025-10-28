@@ -216,13 +216,18 @@ struct FeedView: View {
             }
 
             // New posts banner overlay (Phase 9)
+            // Only banner shown - appears when real-time detects new posts
             if viewModel.showNewPostsBanner {
-                NewPostsBanner(count: viewModel.pendingNewPostsCount) {
-                    Task {
-                        await viewModel.scrollToTopAndLoadNewPosts()
+                VStack {
+                    NewPostsBanner(count: viewModel.pendingNewPostsCount) {
+                        Task {
+                            await viewModel.scrollToTopAndLoadNewPosts()
+                        }
                     }
+                    .padding(.horizontal)
+
+                    Spacer()
                 }
-                .padding(.horizontal)
                 .zIndex(1) // Ensure banner stays on top
             }
         }

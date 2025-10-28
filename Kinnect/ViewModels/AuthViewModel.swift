@@ -172,6 +172,10 @@ final class AuthViewModel: ObservableObject {
             try await authService.signOut()
             authState = .unauthenticated
             errorMessage = nil
+
+            // Post notification for cache clearing (Phase 10)
+            NotificationCenter.default.post(name: .userDidLogout, object: nil)
+            print("🔔 Logout notification posted")
         } catch {
             errorMessage = "Failed to sign out. Please try again."
         }
