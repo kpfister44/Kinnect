@@ -249,6 +249,10 @@ final class ProfileViewModel: ObservableObject {
             // Invalidate cache for this user since avatar changed
             invalidateCache(for: userId)
             print("✅ ProfileViewModel: Avatar upload complete - cache invalidated")
+
+            // Notify FeedViewModel to invalidate cache so updated avatar shows in feed
+            NotificationCenter.default.post(name: .userDidUpdateProfile, object: nil)
+            print("📢 Posted userDidUpdateProfile notification")
         } catch let error as ProfileServiceError {
             errorMessage = error.errorDescription
             print("❌ ProfileViewModel: ProfileServiceError: \(error)")

@@ -71,9 +71,10 @@ final class FeedViewModel: ObservableObject {
         NotificationCenter.default.removeObserver(self)
     }
 
-    // MARK: - Logout Observer
+    // MARK: - Notification Observers
 
     private func setupLogoutObserver() {
+        // Clear cache on logout
         NotificationCenter.default.addObserver(
             forName: .userDidLogout,
             object: nil,
@@ -81,6 +82,32 @@ final class FeedViewModel: ObservableObject {
         ) { [weak self] _ in
             self?.invalidateCache()
             print("🗑️ Cache cleared on logout")
+        }
+
+        // Show banner when user creates a post (so they can refresh to see it)
+        NotificationCenter.default.addObserver(
+            forName: .userDidCreatePost,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            // Increment pending count and show banner
+            self.pendingNewPostsCount = 1
+            self.showNewPostsBanner = true
+            print("📢 New post created - showing refresh banner")
+        }
+
+        // Show banner when user updates profile (avatar, etc.) so they can refresh to see changes
+        NotificationCenter.default.addObserver(
+            forName: .userDidUpdateProfile,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            // Show banner to refresh and see updated profile info
+            self.pendingNewPostsCount = 1
+            self.showNewPostsBanner = true
+            print("📢 Profile updated - showing refresh banner")
         }
     }
 

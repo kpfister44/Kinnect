@@ -55,6 +55,10 @@ class UploadViewModel: ObservableObject {
             isUploading = false
             uploadSuccess = true
 
+            // Notify FeedViewModel to invalidate cache so new post appears when switching tabs
+            NotificationCenter.default.post(name: .userDidCreatePost, object: nil)
+            print("📢 Posted userDidCreatePost notification")
+
         } catch let error as PostServiceError {
             // Handle known errors
             print("❌ Upload failed: \(error.localizedDescription)")

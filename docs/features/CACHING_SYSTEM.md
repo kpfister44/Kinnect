@@ -464,16 +464,48 @@ private func updateProfileCache(userId: UUID, profile: Profile, posts: [Post], s
 **When to clear cache:**
 1. ✅ **User logs out** - Clear all caches
 2. ✅ **User switches accounts** - Clear all caches
-3. ✅ **Upload new post** - Invalidate feed cache (new content)
-4. ✅ **Delete post** - Invalidate feed + profile cache
-5. ✅ **Edit profile** - Invalidate profile cache
 
 **When NOT to clear cache:**
 - ❌ Like/unlike - Use optimistic update instead
 - ❌ Comment - Use optimistic update instead
 - ❌ Follow/unfollow - Use optimistic update instead
 - ❌ App backgrounded - Keep cache warm
-- ❌ Tab switch - Keep cache (check staleness)
+- ❌ Tab switch - Keep cache (serves instantly)
+- ❌ Upload new post - Show banner instead (see below)
+- ❌ Edit profile - Show banner instead (see below)
+
+### Banner-Triggered Refresh (October 2025 Enhancement)
+
+**When user creates content or updates profile:**
+1. ✅ **Upload new post** - Show "New posts available" banner → user taps → fetch fresh
+2. ✅ **Edit profile/avatar** - Show "New posts available" banner → user taps → fetch fresh
+
+**Implementation via NotificationCenter:**
+```swift
+// UploadViewModel posts notification after successful upload
+NotificationCenter.default.post(name: .userDidCreatePost, object: nil)
+
+// ProfileViewModel posts notification after avatar/profile update
+NotificationCenter.default.post(name: .userDidUpdateProfile, object: nil)
+
+// FeedViewModel listens and shows banner (cache stays valid)
+NotificationCenter.default.addObserver(forName: .userDidCreatePost) { _ in
+    self.pendingNewPostsCount = 1
+    self.showNewPostsBanner = true
+}
+```
+
+**UX Flow:**
+1. User uploads post or changes avatar
+2. User switches to Feed tab → cached feed loads instantly (<50ms)
+3. Banner appears: "1 new post • Tap to view"
+4. User taps banner → feed refreshes from API → new content appears
+
+**Why this approach?**
+- ✅ No forced waiting - cache serves instantly
+- ✅ User controls refresh timing
+- ✅ Same banner pattern as realtime events (consistent UX)
+- ✅ Works even when realtime subscription isn't active
 
 ### Manual Invalidation
 
