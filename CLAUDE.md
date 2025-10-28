@@ -392,17 +392,50 @@ Detailed documentation for completed features is available in `/docs/`. Referenc
 
 ### PhotosPicker Sheet Presentation Race Condition
 
-**Symptom:** First photo upload after app launch fails - PhotosPicker dismisses but NewPostView sheet doesn't present. UI "zooms out" briefly. Works correctly on subsequent attempts.
+**Symptom:** First photo upload after app launch shows blank white sheet. User must swipe down to dismiss. Subsequent uploads work correctly. Issue reappears after closing and reopening app.
 
-**Root Cause:** The `onChange` handler fires multiple times on first launch, causing a race condition between PhotosPicker dismissal and sheet presentation.
+**Root Cause:** Race condition between two separate state variables (`showNewPostView` boolean and `selectedImage`). During SwiftUI's state update cycle on first app launch, these variables can desynchronize, causing the sheet to present before the image is available, resulting in blank content.
 
-**Solution:**
-1. Add `isProcessingImage` flag to prevent duplicate processing
-2. Add guard clauses with proper early returns
-3. Use explicit `MainActor.run` for all state updates
-4. Add 0.5 second delay to ensure PhotosPicker fully dismisses before presenting sheet
+**Solution (October 2025 - FIXED):**
+Switched from `.sheet(isPresented:)` to `.sheet(item:)` using a single atomic state variable:
 
-**Location:** `UploadView.swift` - `.onChange(of: selectedItem)` handler
+1. **Created IdentifiableImage wrapper** to make UIImage identifiable:
+```swift
+struct IdentifiableImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+```
+
+2. **Replaced two state variables with one:**
+```swift
+// REMOVED:
+@State private var showNewPostView = false
+@State private var selectedImage: UIImage?
+
+// ADDED:
+@State private var selectedImageWrapper: IdentifiableImage?
+```
+
+3. **Changed sheet presentation to use `.sheet(item:)`:**
+```swift
+.sheet(item: $selectedImageWrapper, onDismiss: {
+    // Reset state
+    selectedItem = nil
+    selectedImageWrapper = nil
+    isProcessingImage = false
+    errorMessage = nil
+}) { imageWrapper in
+    if let userId = currentUserId {
+        NewPostView(selectedImage: imageWrapper.image, userId: userId)
+    }
+}
+```
+
+**Why This Works:** SwiftUI's `.sheet(item:)` modifier is atomic - it guarantees the sheet will only present when the bound item is non-nil. This eliminates any possibility of race conditions between separate state variables.
+
+**Location:** `UploadView.swift` - Complete file
+**Detailed Tracking:** See `/BUG_TRACKING_UPLOAD_SHEET.md` for iteration history
 
 ---
 
@@ -420,6 +453,26 @@ Detailed documentation for completed features is available in `/docs/`. Referenc
 **Key Insight:** GeometryReader + AsyncImage can cause timing-based layout bugs where the reader expands to fill space before the image loads, causing overlap issues. SwiftUI's native `.aspectRatio()` modifier is more reliable for simple square aspect ratio constraints.
 
 **Location:** `PostCellView.swift` - `imageView` computed property
+
+---
+
+### Avatar Upload Failure in Simulator (iCloud Photo Library Error)
+
+**Symptom:** Profile picture upload fails in iOS simulator with error: `CloudPhotoLibraryErrorDomain Code=1006` or `PHAssetExportRequestErrorDomain Code=4`. Console shows "Couldn't communicate with a helper application" and "Cannot load representation of type public.jpeg". Works fine on physical devices.
+
+**Root Cause:** iOS Simulator cannot access photos stored in iCloud Photo Library. When PhotosPicker tries to load an image that's in iCloud (not fully downloaded locally), it fails with a helper application error. This is a known simulator limitation.
+
+**Solution:**
+1. Added error handling in `loadSelectedImage()` to detect iCloud-related errors
+2. Display user-friendly error message: "Cannot access iCloud photos in simulator. Try using a local photo or test on a physical device."
+3. Automatically reset picker selection on error to allow retry
+
+**Workarounds for Development:**
+- Add photos directly to simulator by dragging image files into the simulator window
+- Disable iCloud Photo Library in simulator: Settings → Photos → iCloud Photos (off)
+- Test avatar upload on physical devices where this issue doesn't occur
+
+**Location:** `EditProfileView.swift` - `loadSelectedImage()` function
 
 ---
 

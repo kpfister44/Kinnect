@@ -258,10 +258,31 @@ struct EditProfileView: View {
                let image = UIImage(data: data) {
                 await MainActor.run {
                     selectedImage = image
+                    viewModel.errorMessage = nil // Clear any previous errors
+                }
+            } else {
+                // Failed to load image data
+                await MainActor.run {
+                    viewModel.errorMessage = "Failed to load selected photo. Try selecting a different photo."
                 }
             }
         } catch {
             print("❌ Failed to load image: \(error)")
+
+            // Provide user-friendly error message
+            await MainActor.run {
+                // Check if it's an iCloud-related error (common in simulator)
+                if error.localizedDescription.contains("CloudPhotoLibrary") ||
+                   error.localizedDescription.contains("PHAssetExportRequest") ||
+                   error.localizedDescription.contains("helper application") {
+                    viewModel.errorMessage = "Cannot access iCloud photos in simulator. Try using a local photo or test on a physical device."
+                } else {
+                    viewModel.errorMessage = "Failed to load selected photo. Please try again or choose a different photo."
+                }
+
+                // Reset the picker selection
+                selectedPhotoItem = nil
+            }
         }
     }
 

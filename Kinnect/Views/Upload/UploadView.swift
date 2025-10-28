@@ -8,13 +8,20 @@
 import SwiftUI
 import PhotosUI
 
+// MARK: - Identifiable Image Wrapper
+/// Wrapper to make UIImage identifiable for sheet presentation
+struct IdentifiableImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
 struct UploadView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
 
     @State private var selectedItem: PhotosPickerItem?
-    @State private var selectedImage: UIImage?
-    @State private var showNewPostView = false
+    @State private var selectedImageWrapper: IdentifiableImage? // Changed: use wrapper instead of UIImage
     @State private var isProcessingImage = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -57,6 +64,16 @@ struct UploadView: View {
                         .background(Color.igBlue)
                         .cornerRadius(8)
                     }
+
+                    // Error Message
+                    if let errorMessage = errorMessage {
+                        Text(errorMessage)
+                            .font(.system(size: 14))
+                            .foregroundColor(.igRed)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                            .padding(.top, 8)
+                    }
                 }
                 .padding()
             }
@@ -70,38 +87,65 @@ struct UploadView: View {
                 isProcessingImage = true
 
                 Task {
-                    guard let data = try await newItem?.loadTransferable(type: Data.self) else {
-                        await MainActor.run { isProcessingImage = false }
-                        return
-                    }
+                    do {
+                        guard let data = try await newItem?.loadTransferable(type: Data.self) else {
+                            await MainActor.run {
+                                errorMessage = "Failed to load selected photo. Try selecting a different photo."
+                                isProcessingImage = false
+                                selectedItem = nil
+                            }
+                            return
+                        }
 
-                    guard let uiImage = UIImage(data: data) else {
-                        await MainActor.run { isProcessingImage = false }
-                        return
-                    }
+                        guard let uiImage = UIImage(data: data) else {
+                            await MainActor.run {
+                                errorMessage = "Failed to process selected photo. Try selecting a different photo."
+                                isProcessingImage = false
+                                selectedItem = nil
+                            }
+                            return
+                        }
 
-                    // Ensure UI updates happen on main thread
-                    await MainActor.run {
-                        selectedImage = uiImage
-                    }
+                        // Wait for PhotosPicker to fully dismiss before presenting sheet
+                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
 
-                    // Wait for PhotosPicker to fully dismiss (prevents first-launch glitch)
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                        // Set image wrapper on main thread - this triggers sheet presentation
+                        await MainActor.run {
+                            selectedImageWrapper = IdentifiableImage(image: uiImage)
+                            errorMessage = nil // Clear any previous errors
+                            isProcessingImage = false
+                        }
+                    } catch {
+                        print("❌ Failed to load image: \(error)")
 
-                    await MainActor.run {
-                        showNewPostView = true
-                        isProcessingImage = false
+                        // Provide user-friendly error message
+                        await MainActor.run {
+                            // Check if it's an iCloud-related error (common in simulator)
+                            if error.localizedDescription.contains("CloudPhotoLibrary") ||
+                               error.localizedDescription.contains("PHAssetExportRequest") ||
+                               error.localizedDescription.contains("helper application") {
+                                errorMessage = "Cannot access iCloud photos in simulator. Try using a local photo or test on a physical device."
+                            } else {
+                                errorMessage = "Failed to load selected photo. Please try again or choose a different photo."
+                            }
+
+                            // Reset state
+                            isProcessingImage = false
+                            selectedItem = nil
+                        }
                     }
                 }
             }
-            .sheet(isPresented: $showNewPostView) {
-                // Reset selection when sheet is dismissed
+            .sheet(item: $selectedImageWrapper, onDismiss: {
+                // Reset state when sheet is dismissed
                 selectedItem = nil
-                selectedImage = nil
+                selectedImageWrapper = nil
                 isProcessingImage = false
-            } content: {
-                if let image = selectedImage, let userId = currentUserId {
-                    NewPostView(selectedImage: image, userId: userId)
+                errorMessage = nil
+            }) { imageWrapper in
+                // Sheet content - only presents when imageWrapper is non-nil
+                if let userId = currentUserId {
+                    NewPostView(selectedImage: imageWrapper.image, userId: userId)
                 }
             }
         }
