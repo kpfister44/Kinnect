@@ -9,6 +9,12 @@ import Foundation
 import Supabase
 
 /// Service for fetching and managing the feed
+struct FeedFetchResult {
+    let posts: [Post]
+    let requestedCount: Int
+    let incompletePostIDs: [UUID]
+}
+
 final class FeedService {
     static let shared = FeedService()
 
@@ -30,7 +36,7 @@ final class FeedService {
         currentUserId: UUID,
         limit: Int = 20,
         offset: Int = 0
-    ) async throws -> [Post] {
+    ) async throws -> FeedFetchResult {
         print("📱 Fetching feed for user: \(currentUserId), limit: \(limit), offset: \(offset)")
 
         // Step 1: Get list of user IDs that current user follows
@@ -69,40 +75,155 @@ final class FeedService {
         print("✅ Fetched \(postResponses.count) posts")
 
         // Transform responses into fully-formed Post objects
-        var posts: [Post] = []
+        // Use detached task so it completes even if view disappears (prevents partial cache)
+        return try await Task.detached { [postResponses, currentUserId, client] in
+            return try await withThrowingTaskGroup(of: Post.self) { group in
+                var posts: [Post] = []
 
-        for postResponse in postResponses {
-            do {
-                var post = postResponse.post
+                // Add all posts to task group for concurrent processing
+                for postResponse in postResponses {
+                    group.addTask {
+                        do {
+                            var post = postResponse.post
 
-                // Set author profile
-                post.authorProfile = postResponse.profiles
+                            // Set author profile
+                            post.authorProfile = postResponse.profiles
 
-                // Fetch signed URL for media
-                post.mediaURL = try await getMediaURL(mediaKey: post.mediaKey)
+                            // Fetch all post data concurrently with timeout
+                            try await withThrowingTaskGroup(of: Void.self) { dataGroup in
+                                // Fetch signed URL with timeout
+                                dataGroup.addTask {
+                                    post.mediaURL = try await withTimeout(seconds: 10) {
+                                        try await client.storage
+                                            .from("posts")
+                                            .createSignedURL(path: post.mediaKey, expiresIn: 3600)
+                                    }
+                                }
 
-                // Fetch like count
-                post.likeCount = try await getLikeCount(postId: post.id)
+                                // Fetch like count with timeout
+                                dataGroup.addTask {
+                                    post.likeCount = try await withTimeout(seconds: 10) {
+                                        let response = try await client
+                                            .from("likes")
+                                            .select("*", head: true, count: .exact)
+                                            .eq("post_id", value: post.id.uuidString)
+                                            .execute()
+                                        return response.count ?? 0
+                                    }
+                                }
 
-                // Fetch comment count
-                post.commentCount = try await getCommentCount(postId: post.id)
+                                // Fetch comment count with timeout
+                                dataGroup.addTask {
+                                    post.commentCount = try await withTimeout(seconds: 10) {
+                                        let response = try await client
+                                            .from("comments")
+                                            .select("*", head: true, count: .exact)
+                                            .eq("post_id", value: post.id.uuidString)
+                                            .execute()
+                                        return response.count ?? 0
+                                    }
+                                }
 
-                // Check if current user liked this post
-                post.isLikedByCurrentUser = try await isPostLikedByUser(
-                    postId: post.id,
-                    userId: currentUserId
+                                // Check if liked by user with timeout
+                                dataGroup.addTask {
+                                    post.isLikedByCurrentUser = try await withTimeout(seconds: 10) {
+                                        do {
+                                            let response = try await client
+                                                .from("likes")
+                                                .select("*", head: true, count: .exact)
+                                                .eq("post_id", value: post.id.uuidString)
+                                                .eq("user_id", value: currentUserId.uuidString)
+                                                .execute()
+                                            return (response.count ?? 0) > 0
+                                        } catch {
+                                            print("⚠️ Failed to check like status: \(error)")
+                                            return false
+                                        }
+                                    }
+                                }
+
+                                // Wait for all data to complete
+                                try await dataGroup.waitForAll()
+                            }
+
+                            return post
+                        } catch {
+                            print("⚠️ Failed to process post \(postResponse.post.id): \(error)")
+                            var fallback = postResponse.post
+                            fallback.authorProfile = postResponse.profiles
+                            return fallback
+                        }
+                    }
+                }
+
+                // Collect all results
+                for try await post in group {
+                    posts.append(post)
+                }
+
+                let incompleteIDs = posts.filter { $0.mediaURL == nil }.map { $0.id }
+                let failedCount = incompleteIDs.count
+                if failedCount > 0 {
+                    print("⚠️ Processed \(posts.count)/\(postResponses.count) posts (\(failedCount) missing media URLs)")
+                } else {
+                    print("✅ Processed all \(posts.count) posts with full data")
+                }
+
+                return FeedFetchResult(
+                    posts: posts,
+                    requestedCount: postResponses.count,
+                    incompletePostIDs: incompleteIDs
                 )
+            }
+        }.value
+    }
 
-                posts.append(post)
-            } catch {
-                print("⚠️ Failed to process post \(postResponse.post.id): \(error)")
-                // Continue with other posts even if one fails
-                continue
+    /// Attempt to regenerate signed URLs for posts missing media URLs.
+    func rehydrateMissingMedia(for posts: [Post]) async -> (posts: [Post], missingPostIDs: [UUID]) {
+        let missing = posts.enumerated().filter { $0.element.mediaURL == nil }
+
+        guard !missing.isEmpty else {
+            return (posts, [])
+        }
+
+        var updatedPosts = posts
+
+        await withTaskGroup(of: (Int, URL?).self) { group in
+            for (index, post) in missing {
+                group.addTask { [client] in
+                    do {
+                        let url = try await withTimeout(seconds: 10) {
+                            try await client.storage
+                                .from("posts")
+                                .createSignedURL(path: post.mediaKey, expiresIn: 3600)
+                        }
+                        return (index, url)
+                    } catch {
+                        print("⚠️ Rehydrate failed for post \(post.id): \(error)")
+                        return (index, nil)
+                    }
+                }
+            }
+
+            for await (index, url) in group {
+                if let url {
+                    updatedPosts[index].mediaURL = url
+                }
             }
         }
 
-        print("✅ Processed \(posts.count) posts with full data")
-        return posts
+        let stillMissing = updatedPosts
+            .enumerated()
+            .filter { $0.element.mediaURL == nil }
+            .map { $0.element.id }
+
+        let filtered = updatedPosts.filter { $0.mediaURL != nil }
+
+        if !stillMissing.isEmpty {
+            print("⚠️ Dropping \(stillMissing.count) posts with missing media after rehydrate attempt: \(stillMissing)")
+        }
+
+        return (filtered, stillMissing)
     }
 
     // MARK: - Media URLs
@@ -205,11 +326,46 @@ private struct PostResponse: Decodable {
     }
 }
 
+// MARK: - Timeout Helper
+
+/// Execute async operation with timeout
+/// - Parameters:
+///   - seconds: Timeout duration in seconds
+///   - operation: The async operation to execute
+/// - Returns: The result of the operation
+/// - Throws: TimeoutError if operation exceeds timeout
+fileprivate func withTimeout<T>(
+    seconds: TimeInterval,
+    operation: @escaping @Sendable () async throws -> T
+) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        // Add the actual operation
+        group.addTask {
+            try await operation()
+        }
+
+        // Add timeout task
+        group.addTask {
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            throw FeedServiceError.timeout
+        }
+
+        // Return first completed task (either result or timeout)
+        let result = try await group.next()!
+
+        // Cancel remaining tasks
+        group.cancelAll()
+
+        return result
+    }
+}
+
 // MARK: - Errors
 
 enum FeedServiceError: LocalizedError {
     case fetchFailed(Error)
     case noData
+    case timeout
 
     var errorDescription: String? {
         switch self {
@@ -217,6 +373,8 @@ enum FeedServiceError: LocalizedError {
             return "Failed to load feed: \(error.localizedDescription)"
         case .noData:
             return "No posts available"
+        case .timeout:
+            return "Request timed out. Please check your connection and try again."
         }
     }
 }

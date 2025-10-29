@@ -127,13 +127,20 @@ struct PostCellView: View {
                     .fill(Color.igSeparator)
                     .overlay(ProgressView().tint(.igTextSecondary))
                     .aspectRatio(1, contentMode: .fit)
+                    .onAppear {
+                        print("🖼️ AsyncImage EMPTY for post \(post.id)")
+                        print("🖼️ mediaURL provided: \(mediaURL?.absoluteString ?? "nil")")
+                    }
             case .success(let image):
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .aspectRatio(1, contentMode: .fit)
                     .clipped()
-            case .failure:
+                    .onAppear {
+                        print("✅ AsyncImage SUCCESS for post \(post.id)")
+                    }
+            case .failure(let error):
                 Rectangle()
                     .fill(Color.igSeparator)
                     .overlay(
@@ -147,12 +154,22 @@ struct PostCellView: View {
                         }
                     )
                     .aspectRatio(1, contentMode: .fit)
+                    .onAppear {
+                        print("❌ AsyncImage FAILURE for post \(post.id)")
+                        print("❌ Error: \(error)")
+                        print("❌ mediaURL provided: \(mediaURL?.absoluteString ?? "nil")")
+
+                        if let urlError = error as? URLError, urlError.code == .cancelled {
+                            feedViewModel.recordImageCancellation(for: post.id)
+                        }
+                    }
             @unknown default:
                 Rectangle()
                     .fill(Color.igSeparator)
                     .aspectRatio(1, contentMode: .fit)
             }
         }
+        .id("\(post.id)-\(feedViewModel.viewAppearanceID)")
     }
 
     private var actionButtonsView: some View {
@@ -193,6 +210,7 @@ struct PostCellView: View {
                 }
                 .frame(width: 32, height: 32)
                 .clipShape(Circle())
+                .id("\(post.author)-avatar-\(feedViewModel.viewAppearanceID)")
             } else {
                 Circle()
                     .fill(Color.igSeparator)

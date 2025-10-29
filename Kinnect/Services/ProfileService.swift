@@ -171,25 +171,101 @@ final class ProfileService {
             .execute()
 
         // Decode posts
-        var posts = try JSONDecoder.supabase.decode([Post].self, from: response.data)
+        let posts = try JSONDecoder.supabase.decode([Post].self, from: response.data)
 
         print("✅ Fetched \(posts.count) posts")
 
-        // Add signed URLs for each post
-        for index in posts.indices {
-            do {
-                let signedURL = try await client.storage
-                    .from("posts")
-                    .createSignedURL(path: posts[index].mediaKey, expiresIn: 3600) // 1 hour expiry
+        // Add signed URLs for each post using detached task to survive view disappearance
+        return try await Task.detached { [posts, client] in
+            return try await withThrowingTaskGroup(of: (Int, URL?).self) { group in
+                var postsWithURLs = posts
 
-                posts[index].mediaURL = signedURL
-            } catch {
-                print("⚠️ Failed to get signed URL for post \(posts[index].id): \(error)")
-                // Continue with other posts even if one fails
+                // Add all posts to task group for concurrent signed URL fetching
+                for (index, post) in posts.enumerated() {
+                    group.addTask {
+                        do {
+                            let signedURL = try await withTimeout(seconds: 10) {
+                                try await client.storage
+                                    .from("posts")
+                                    .createSignedURL(path: post.mediaKey, expiresIn: 3600)
+                            }
+                            return (index, signedURL)
+                        } catch {
+                            print("⚠️ Failed to get signed URL for post \(post.id): \(error)")
+                            return (index, nil)
+                        }
+                    }
+                }
+
+                // Collect all results
+                for try await (index, signedURL) in group {
+                    if let signedURL = signedURL {
+                        postsWithURLs[index].mediaURL = signedURL
+                    }
+                }
+
+                // Return whatever posts we successfully processed
+                // Some posts may fail (404, etc.) - that's expected behavior
+                let validPostsCount = postsWithURLs.filter { $0.mediaURL != nil }.count
+                let failedCount = posts.count - validPostsCount
+
+                if failedCount > 0 {
+                    print("⚠️ Processed \(validPostsCount)/\(posts.count) posts (\(failedCount) failed to get signed URLs)")
+                } else {
+                    print("✅ All \(posts.count) posts have signed URLs")
+                }
+
+                return postsWithURLs
+            }
+        }.value
+    }
+
+    /// Attempt to regenerate signed URLs for posts missing media URLs.
+    func rehydrateMissingMedia(for posts: [Post]) async -> (posts: [Post], missingPostIDs: [UUID]) {
+        let missing = posts.enumerated().filter { $0.element.mediaURL == nil }
+
+        guard !missing.isEmpty else {
+            return (posts, [])
+        }
+
+        var updatedPosts = posts
+
+        await withTaskGroup(of: (Int, URL?).self) { group in
+            for (index, post) in missing {
+                group.addTask { [client] in
+                    do {
+                        let url = try await withTimeout(seconds: 10) {
+                            try await client.storage
+                                .from("posts")
+                                .createSignedURL(path: post.mediaKey, expiresIn: 3600)
+                        }
+                        return (index, url)
+                    } catch {
+                        print("⚠️ Profile rehydrate failed for post \(post.id): \(error)")
+                        return (index, nil)
+                    }
+                }
+            }
+
+            for await (index, url) in group {
+                if let url {
+                    updatedPosts[index].mediaURL = url
+                }
             }
         }
 
-        return posts
+        let stillMissing = updatedPosts
+            .enumerated()
+            .filter { $0.element.mediaURL == nil }
+            .map { $0.element.id }
+
+        let filtered = updatedPosts.filter { $0.mediaURL != nil }
+
+        if !stillMissing.isEmpty {
+            print("⚠️ Dropping \(stillMissing.count) profile posts with missing media after rehydrate attempt: \(stillMissing)")
+        }
+
+        return (filtered, stillMissing)
     }
 
     // MARK: - Profile Stats
@@ -285,13 +361,50 @@ struct ProfileStats {
     var followingCount: Int
 }
 
+// MARK: - Timeout Helper
+
+/// Execute async operation with timeout
+/// - Parameters:
+///   - seconds: Timeout duration in seconds
+///   - operation: The async operation to execute
+/// - Returns: The result of the operation
+/// - Throws: TimeoutError if operation exceeds timeout
+fileprivate func withTimeout<T>(
+    seconds: TimeInterval,
+    operation: @escaping @Sendable () async throws -> T
+) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        // Add the actual operation
+        group.addTask {
+            try await operation()
+        }
+
+        // Add timeout task
+        group.addTask {
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            throw ProfileServiceError.timeout
+        }
+
+        // Return first completed task (either result or timeout)
+        let result = try await group.next()!
+
+        // Cancel remaining tasks
+        group.cancelAll()
+
+        return result
+    }
+}
+
 enum ProfileServiceError: LocalizedError {
     case imageCompressionFailed
+    case timeout
 
     var errorDescription: String? {
         switch self {
         case .imageCompressionFailed:
             return "Failed to compress image. Please try a different photo."
+        case .timeout:
+            return "Request timed out. Please check your connection and try again."
         }
     }
 }

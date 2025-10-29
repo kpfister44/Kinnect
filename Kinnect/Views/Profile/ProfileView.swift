@@ -54,6 +54,7 @@ struct ProfileView: View {
                             isCurrentUser: isCurrentUser,
                             isFollowing: viewModel.isFollowing,
                             isFollowOperationInProgress: viewModel.isFollowOperationInProgress,
+                            viewAppearanceID: viewModel.viewAppearanceID,
                             onEditProfile: {
                                 showEditProfile = true
                             },
@@ -75,8 +76,10 @@ struct ProfileView: View {
                             ProfilePostsGridView(
                                 posts: viewModel.posts,
                                 isCurrentUser: isCurrentUser,
-                                currentUserId: currentId
+                                currentUserId: currentId,
+                                viewAppearanceID: viewModel.viewAppearanceID
                             )
+                            .environmentObject(viewModel)
                         }
                     }
                 } else if let errorMessage = viewModel.errorMessage {
@@ -147,6 +150,14 @@ struct ProfileView: View {
             }
             .task {
                 await loadProfile()
+            }
+            .onAppear {
+                // Smart AsyncImage reload - only regenerate IDs if needed
+                // This preserves AsyncImage's cache for snappy performance
+                viewModel.handleViewAppear()
+            }
+            .onDisappear {
+                viewModel.handleViewDisappear()
             }
             .refreshable {
                 await loadProfile()

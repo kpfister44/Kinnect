@@ -17,6 +17,23 @@ final class FeedViewModel: ObservableObject {
     @Published var state: LoadingState = .idle
     @Published var errorMessage: String?
 
+    // MARK: - AsyncImage Reload State (Bug Fix: TAB-SWITCH-001 - Iteration 6)
+    /// Changes when view appears to force AsyncImage recreation and bypass cached failure states
+    @Published var viewAppearanceID = UUID()
+
+    /// Track if view is currently visible to avoid unnecessary AsyncImage reloads
+    private var isViewVisible = false
+
+    /// Track if a fetch is currently in progress
+    private var isFetchInProgress = false
+
+    /// Flag set when user switches away during an active fetch (AsyncImage reload needed)
+    private var didSwitchAwayDuringFetch = false
+
+    private var feedFetchTask: Task<Void, Never>?
+    private var activeRequestID: UUID?
+    private var cancelledImagePostIDs: Set<UUID> = []
+
     // MARK: - Realtime State (Phase 9)
     @Published var pendingNewPostsCount: Int = 0
     @Published var showNewPostsBanner: Bool = false
@@ -69,6 +86,7 @@ final class FeedViewModel: ObservableObject {
     deinit {
         // Remove notification observer
         NotificationCenter.default.removeObserver(self)
+        feedFetchTask?.cancel()
     }
 
     // MARK: - Notification Observers
@@ -150,47 +168,97 @@ final class FeedViewModel: ObservableObject {
         print("🗑️ Cache invalidated")
     }
 
+    // MARK: - View Lifecycle (Bug Fix: TAB-SWITCH-001 - Iteration 6)
+
+    /// Call when view appears - regenerate AsyncImage IDs if user switched away during fetch
+    func handleViewAppear() {
+        let wasInvisible = !isViewVisible
+        isViewVisible = true
+
+        // Check if user switched away while a fetch was in progress or images were cancelled
+        if wasInvisible && (didSwitchAwayDuringFetch || !cancelledImagePostIDs.isEmpty) {
+            print("🔄 [Iteration 6] View returning after switching away during fetch")
+            print("🔄 Regenerating AsyncImage IDs to retry cancelled downloads")
+            viewAppearanceID = UUID()
+            didSwitchAwayDuringFetch = false // Clear flag after handling
+
+            let failedIDs = cancelledImagePostIDs
+            cancelledImagePostIDs.removeAll()
+
+            Task { [weak self] in
+                await self?.refreshCancelledImages(for: failedIDs)
+            }
+        } else if wasInvisible {
+            print("✨ [Iteration 6] View returning - no fetch interruption, keeping AsyncImage cache")
+        }
+    }
+
+    /// Call when view disappears - check if fetch is in progress
+    func handleViewDisappear() {
+        isViewVisible = false
+
+        // If fetch is in progress, mark that we need to reload AsyncImages on return
+        if isFetchInProgress {
+            print("🚨 [Iteration 6] User switched away during active fetch - marking for AsyncImage reload")
+            didSwitchAwayDuringFetch = true
+        } else {
+            print("👋 [Iteration 6] View disappeared - no active fetch")
+        }
+    }
+
+    func recordImageCancellation(for postID: UUID) {
+        cancelledImagePostIDs.insert(postID)
+
+        if isViewVisible {
+            let ids: Set<UUID> = [postID]
+            Task { [weak self] in
+                await self?.refreshCancelledImages(for: ids)
+            }
+        }
+    }
+
     /// Update cache with fresh posts
+    /// Only caches if ALL posts have valid mediaURLs (prevents partial cache)
     private func updateCache(with posts: [Post]) {
+        // Validation: Ensure all posts have valid mediaURLs
+        let postsWithoutURLs = posts.filter { $0.mediaURL == nil }
+
+        guard postsWithoutURLs.isEmpty else {
+            print("⚠️ Skipping cache update: \(postsWithoutURLs.count)/\(posts.count) posts missing mediaURLs")
+            print("⚠️ Posts without URLs: \(postsWithoutURLs.map { $0.id })")
+            return
+        }
+
+        // All posts valid - safe to cache
         cachedPosts = posts
         cacheTimestamp = Date()
         isCacheStale = false
-        print("💾 Cache updated with \(posts.count) posts")
+        print("💾 Cache updated with \(posts.count) posts (all have valid mediaURLs)")
     }
 
     // MARK: - Public Methods
 
     /// Load the feed (called on view appear)
     func loadFeed(forceRefresh: Bool = false) async {
-        // If force refresh requested, skip cache
         if forceRefresh {
             print("🔄 Force refresh - bypassing cache")
+            invalidateCache()
             currentOffset = 0
             canLoadMore = true
-            await fetchPosts(isRefresh: true)
-            return
-        }
-
-        // Check if cache is valid
-        if isCacheValidCheck() {
-            // Use cached data
+        } else if isCacheValidCheck() {
             posts = cachedPosts
             state = .loaded
             isCacheStale = isCacheStaleCheck()
 
             print("✅ Loaded feed from cache (age: \(cacheAge())s, stale: \(isCacheStale))")
 
-            // Restore pagination state based on cached posts
             currentOffset = cachedPosts.count
             canLoadMore = cachedPosts.count >= pageSize
             return
         }
 
-        // Cache expired or empty - fetch fresh
-        print("🌐 Cache miss - fetching fresh feed")
-        currentOffset = 0
-        canLoadMore = true
-        await fetchPosts(isRefresh: true)
+        print("🌐 Fetching feed from Supabase (offset: \(currentOffset))")
+        scheduleFeedFetch(isRefresh: true)
     }
 
     /// Load more posts (pagination)
@@ -203,58 +271,170 @@ final class FeedViewModel: ObservableObject {
             return
         }
 
-        await fetchPosts(isRefresh: false)
+        scheduleFeedFetch(isRefresh: false)
     }
 
     /// Refresh the feed
     func refresh() async {
-        await loadFeed()
+        await loadFeed(forceRefresh: true)
     }
 
     // MARK: - Private Methods
 
-    /// Fetch posts from Supabase
-    private func fetchPosts(isRefresh: Bool) async {
+    private func scheduleFeedFetch(isRefresh: Bool) {
+        if isFetchInProgress {
+            if isRefresh {
+                feedFetchTask?.cancel()
+            } else {
+                print("⏳ Skipping pagination fetch - another fetch is in progress")
+                return
+            }
+        }
+
         if isRefresh {
             state = .loading
             posts = []
+            currentOffset = 0
+            canLoadMore = true
         }
 
-        do {
-            let newPosts = try await feedService.fetchFeed(
-                currentUserId: currentUserId,
-                limit: pageSize,
-                offset: currentOffset
-            )
+        let requestID = UUID()
+        activeRequestID = requestID
 
-            if isRefresh {
-                posts = newPosts
-                // Update cache on initial refresh
-                updateCache(with: newPosts)
-            } else {
-                posts.append(contentsOf: newPosts)
-                // Update cache with full list after pagination
-                updateCache(with: posts)
+        let offset = currentOffset
+        let limit = pageSize
+        let feedService = self.feedService
+        let currentUserId = self.currentUserId
+
+        isFetchInProgress = true
+        print("🚀 Fetch queued (request: \(requestID), offset: \(offset), limit: \(limit))")
+
+        if !isViewVisible {
+            print("🚨 Fetch starting while view is invisible - marking for AsyncImage reload on return")
+            didSwitchAwayDuringFetch = true
+        }
+
+        feedFetchTask?.cancel()
+        feedFetchTask = Task.detached { [weak self] in
+            do {
+                let result = try await feedService.fetchFeed(
+                    currentUserId: currentUserId,
+                    limit: limit,
+                    offset: offset
+                )
+
+                let (hydratedPosts, droppedIDs) = await feedService.rehydrateMissingMedia(for: result.posts)
+
+                await MainActor.run {
+                    guard let self = self, self.activeRequestID == requestID else { return }
+                    self.handleFeedFetchSuccess(
+                        fetchedPosts: hydratedPosts,
+                        requestedCount: result.requestedCount,
+                        droppedPostIDs: droppedIDs,
+                        isRefresh: isRefresh
+                    )
+                }
+            } catch {
+                await MainActor.run {
+                    guard let self = self, self.activeRequestID == requestID else { return }
+                    self.handleFeedFetchFailure(error: error, isRefresh: isRefresh)
+                }
+            }
+        }
+    }
+
+    private func refreshCancelledImages(for ids: Set<UUID>) async {
+        guard !ids.isEmpty else { return }
+
+        cancelledImagePostIDs.subtract(ids)
+
+        let postsToRefresh = posts.filter { ids.contains($0.id) }
+        guard !postsToRefresh.isEmpty else { return }
+
+        print("🔄 Refreshing signed URLs for cancelled images: \(ids)")
+        let (rehydratedPosts, stillMissing) = await feedService.rehydrateMissingMedia(for: postsToRefresh)
+
+        guard !rehydratedPosts.isEmpty else {
+            if !stillMissing.isEmpty {
+                print("⚠️ Unable to refresh media for posts: \(stillMissing)")
+            }
+            return
+        }
+
+        for updatedPost in rehydratedPosts {
+            if let index = posts.firstIndex(where: { $0.id == updatedPost.id }) {
+                posts[index].mediaURL = updatedPost.mediaURL
             }
 
-            // Update pagination
-            currentOffset += newPosts.count
-            canLoadMore = newPosts.count >= pageSize
+            if let cacheIndex = cachedPosts.firstIndex(where: { $0.id == updatedPost.id }) {
+                cachedPosts[cacheIndex].mediaURL = updatedPost.mediaURL
+            }
+        }
 
-            state = .loaded
-            errorMessage = nil
+        if !stillMissing.isEmpty {
+            print("⚠️ Posts still missing media after refresh: \(stillMissing)")
+        }
+    }
 
-            print("✅ Feed loaded: \(posts.count) total posts")
-        } catch {
-            print("❌ Failed to load feed: \(error)")
+    private func handleFeedFetchSuccess(
+        fetchedPosts: [Post],
+        requestedCount: Int,
+        droppedPostIDs: [UUID],
+        isRefresh: Bool
+    ) {
+        defer {
+            isFetchInProgress = false
+            feedFetchTask = nil
+            activeRequestID = nil
+        }
+
+        if isRefresh {
+            posts = fetchedPosts
+            updateCache(with: fetchedPosts)
+        } else {
+            posts.append(contentsOf: fetchedPosts)
+            updateCache(with: posts)
+        }
+
+        currentOffset += requestedCount
+        if requestedCount < pageSize {
+            canLoadMore = false
+        } else {
+            canLoadMore = true
+        }
+
+        if !droppedPostIDs.isEmpty {
+            print("⚠️ Dropped posts with missing media: \(droppedPostIDs)")
+        }
+
+        state = .loaded
+        errorMessage = nil
+
+        print("✅ Feed loaded: \(posts.count) total posts")
+    }
+
+    private func handleFeedFetchFailure(error: Error, isRefresh: Bool) {
+        defer {
+            isFetchInProgress = false
+            feedFetchTask = nil
+            activeRequestID = nil
+        }
+
+        if error is CancellationError {
+            print("⚠️ Feed fetch task cancelled (request superseded)")
+            return
+        }
+
+        print("❌ Failed to load feed: \(error)")
+
+        if isRefresh {
             state = .error
-            errorMessage = error.localizedDescription
+        }
 
-            // If refresh failed, keep existing posts
-            if !isRefresh {
-                // Reset offset on error
-                currentOffset = max(0, currentOffset - pageSize)
-            }
+        errorMessage = error.localizedDescription
+
+        if !isRefresh {
+            currentOffset = max(0, currentOffset - pageSize)
         }
     }
 

@@ -87,6 +87,18 @@ refreshFeed() {
 }
 ```
 
+### AsyncImage Cancellation Handling (October 28, 2025)
+
+SwiftUI cancels outstanding `AsyncImage` requests when a view disappears. During rapid tab switches this produced a cached failure state (`URLError.cancelled`) even though the cache already held fresh signed URLs.
+
+**Mitigation:**
+1. Feed/profile cells report cancelled errors back to their respective view models via `recordImageCancellation(for:)`.
+2. View models persist the cancelled post IDs while the view is off-screen.
+3. On `handleViewAppear()`, the view regenerates its `viewAppearanceID`, refreshes signed URLs for those IDs with `rehydrateMissingMedia`, and updates both the live array and cached copies.
+4. Only the affected posts redraw, preserving the normal AsyncImage cache for the rest of the feed/profile grid.
+
+**Effect:** Tab-switching during an initial load now recovers automatically, and the cache continues to deliver instant renders on subsequent visits.
+
 ---
 
 ## Implementation Plan
@@ -652,6 +664,7 @@ func loadMorePostsIfNeeded(currentPost: Post) {
 ### Feed Caching Tests
 
 - [ ] Load feed → Switch tabs → Return → See cached data instantly
+- [ ] Switch tabs while feed is loading → Return → Images recover after cancellation
 - [ ] Wait 6 minutes → Return to feed → See stale banner
 - [ ] Tap stale banner → Feed refreshes
 - [ ] Like post → Cache updates optimistically
@@ -660,9 +673,8 @@ func loadMorePostsIfNeeded(currentPost: Post) {
 - [ ] Post new photo → Feed cache invalidates
 - [ ] Logout → All caches cleared
 
-### Profile Caching Tests
-
 - [ ] View profile → Switch tabs → Return → See cached data
+- [ ] Switch tabs while profile grid is loading → Return → Images recover after cancellation
 - [ ] View other user's profile → Cache separate from own profile
 - [ ] Edit profile → Profile cache invalidates
 - [ ] Delete post → Profile cache updates

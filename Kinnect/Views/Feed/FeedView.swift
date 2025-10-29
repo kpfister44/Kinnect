@@ -76,7 +76,13 @@ struct FeedView: View {
                 await viewModel.loadFeed()
                 await viewModel.setupRealtimeSubscriptions()
             }
+            .onAppear {
+                // Smart AsyncImage reload - only regenerate IDs if needed
+                // This preserves AsyncImage's cache for snappy performance
+                viewModel.handleViewAppear()
+            }
             .onDisappear {
+                viewModel.handleViewDisappear()
                 Task {
                     await viewModel.cleanupRealtimeSubscriptions()
                 }

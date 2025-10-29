@@ -11,6 +11,9 @@ struct ProfilePostsGridView: View {
     let posts: [Post]
     let isCurrentUser: Bool
     let currentUserId: UUID
+    let viewAppearanceID: UUID // For forcing AsyncImage reload
+
+    @EnvironmentObject private var profileViewModel: ProfileViewModel
 
     // Grid layout: 3 columns with 1pt spacing (Instagram style)
     private let columns = [
@@ -37,8 +40,9 @@ struct ProfilePostsGridView: View {
                             NavigationLink {
                                 PostDetailView(post: post, currentUserId: currentUserId)
                             } label: {
-                                PostGridCell(post: post)
+                                PostGridCell(post: post, viewAppearanceID: viewAppearanceID)
                             }
+                            .environmentObject(profileViewModel)
                         }
                     }
                 }
@@ -79,6 +83,9 @@ struct ProfilePostsGridView: View {
 
 struct PostGridCell: View {
     let post: Post
+    let viewAppearanceID: UUID
+
+    @EnvironmentObject private var profileViewModel: ProfileViewModel
 
     var body: some View {
         // Load actual image from signed URL
@@ -107,7 +114,7 @@ struct PostGridCell: View {
                                     .padding(8)
                             }
                         }
-                case .failure:
+                case .failure(let error):
                     Rectangle()
                         .fill(Color.igBackgroundGray)
                         .aspectRatio(1, contentMode: .fill)
@@ -115,12 +122,18 @@ struct PostGridCell: View {
                             Image(systemName: "exclamationmark.triangle")
                                 .foregroundColor(.igTextSecondary)
                         )
+                        .onAppear {
+                            if let urlError = error as? URLError, urlError.code == .cancelled {
+                                profileViewModel.recordImageCancellation(for: post.id)
+                            }
+                        }
                 @unknown default:
                     Rectangle()
                         .fill(Color.igBackgroundGray)
                         .aspectRatio(1, contentMode: .fill)
                 }
             }
+            .id("\(post.id)-\(viewAppearanceID)")
             .aspectRatio(1, contentMode: .fill)
             .clipped()
         } else {
@@ -145,8 +158,10 @@ struct PostGridCell: View {
             ProfilePostsGridView(
                 posts: [],
                 isCurrentUser: true,
-                currentUserId: UUID()
+                currentUserId: UUID(),
+                viewAppearanceID: UUID()
             )
+            .environmentObject(ProfileViewModel())
             .frame(height: 300)
 
             Divider()
@@ -174,9 +189,11 @@ struct PostGridCell: View {
                     )
                 ],
                 isCurrentUser: true,
-                currentUserId: UUID()
+                currentUserId: UUID(),
+                viewAppearanceID: UUID()
             )
             .frame(height: 300)
+            .environmentObject(ProfileViewModel())
         }
         .background(Color.igBackground)
     }

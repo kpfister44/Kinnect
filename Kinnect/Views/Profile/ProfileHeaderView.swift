@@ -13,6 +13,7 @@ struct ProfileHeaderView: View {
     let isCurrentUser: Bool
     let isFollowing: Bool
     let isFollowOperationInProgress: Bool
+    let viewAppearanceID: UUID // For forcing AsyncImage reload
     let onEditProfile: () -> Void
     let onFollowToggle: () -> Void
     let onFollowersTap: () -> Void
@@ -38,6 +39,7 @@ struct ProfileHeaderView: View {
                             defaultAvatar
                         }
                     }
+                    .id("\(profile.id)-avatar-\(viewAppearanceID)")
                 } else {
                     defaultAvatar
                 }
@@ -173,13 +175,14 @@ struct StatView: View {
         followingCount: 200
     )
 
-    return VStack {
+    VStack {
         ProfileHeaderView(
             profile: sampleProfile,
             stats: sampleStats,
             isCurrentUser: true,
             isFollowing: false,
             isFollowOperationInProgress: false,
+            viewAppearanceID: UUID(),
             onEditProfile: {},
             onFollowToggle: {},
             onFollowersTap: {},

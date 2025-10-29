@@ -476,5 +476,18 @@ struct IdentifiableImage: Identifiable {
 
 ---
 
+### Feed/Profile Images Missing After Tab Switch (AsyncImage Cancellation)
+
+**Symptom:** Switching tabs while the feed or profile grid is still loading causes several posts to show the "Failed to load" placeholder after returning.
+
+**Root Cause:** When the view disappears, SwiftUI cancels in-flight `AsyncImage` downloads (`URLError.cancelled`). The cache already held valid signed URLs, but AsyncImage cached its failure state and never retried once the tab became visible again.
+
+**Solution (October 2025 - FIXED):** Feed and profile view models now track cancelled image IDs via `recordImageCancellation(for:)`. On the next `handleViewAppear()`, we regenerate the AsyncImage identifier and refresh signed URLs just for those posts (using `rehydrateMissingMedia`), ensuring they retry with fresh data while leaving the rest of the cache untouched.
+
+**Location:** `FeedViewModel.swift`, `ProfileViewModel.swift`, `PostCellView.swift`, `ProfilePostsGridView.swift`
+**Detailed Tracking:** See `/BUG_TRACKING_TAB_SWITCH_CACHE.md` (Iterations 1-7)
+
+---
+
 
 **Built with Swift, SwiftUI, and Supabase.**
