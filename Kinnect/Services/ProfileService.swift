@@ -160,28 +160,43 @@ final class ProfileService {
     ) async throws -> [Post] {
         print("📱 Fetching posts for user: \(userId)")
 
-        // Fetch posts from this user
+        // Fetch posts from this user with author profile data
         let response = try await client
             .from("posts")
-            .select("*")
+            .select("""
+                *,
+                profiles!posts_author_fkey(
+                    user_id,
+                    username,
+                    avatar_url,
+                    full_name,
+                    bio,
+                    created_at
+                )
+            """)
             .eq("author", value: userId.uuidString)
             .order("created_at", ascending: false)
             .limit(limit)
             .range(from: offset, to: offset + limit - 1)
             .execute()
 
-        // Decode posts
-        let posts = try JSONDecoder.supabase.decode([Post].self, from: response.data)
+        // Decode posts with embedded profile data
+        let postResponses = try JSONDecoder.supabase.decode([PostResponseProfile].self, from: response.data)
 
-        print("✅ Fetched \(posts.count) posts")
+        print("✅ Fetched \(postResponses.count) posts")
 
         // Add signed URLs for each post using detached task to survive view disappearance
-        return try await Task.detached { [posts, client] in
+        return try await Task.detached { [postResponses, client] in
             return try await withThrowingTaskGroup(of: (Int, URL?).self) { group in
-                var postsWithURLs = posts
+                // Create posts array with author profiles populated
+                var postsWithURLs = postResponses.map { response in
+                    var post = response.post
+                    post.authorProfile = response.profiles
+                    return post
+                }
 
                 // Add all posts to task group for concurrent signed URL fetching
-                for (index, post) in posts.enumerated() {
+                for (index, post) in postsWithURLs.enumerated() {
                     group.addTask {
                         do {
                             let signedURL = try await withTimeout(seconds: 10) {
@@ -207,12 +222,12 @@ final class ProfileService {
                 // Return whatever posts we successfully processed
                 // Some posts may fail (404, etc.) - that's expected behavior
                 let validPostsCount = postsWithURLs.filter { $0.mediaURL != nil }.count
-                let failedCount = posts.count - validPostsCount
+                let failedCount = postsWithURLs.count - validPostsCount
 
                 if failedCount > 0 {
-                    print("⚠️ Processed \(validPostsCount)/\(posts.count) posts (\(failedCount) failed to get signed URLs)")
+                    print("⚠️ Processed \(validPostsCount)/\(postsWithURLs.count) posts (\(failedCount) failed to get signed URLs)")
                 } else {
-                    print("✅ All \(posts.count) posts have signed URLs")
+                    print("✅ All \(postsWithURLs.count) posts have signed URLs")
                 }
 
                 return postsWithURLs
@@ -359,6 +374,47 @@ struct ProfileStats {
     var postsCount: Int
     var followersCount: Int
     var followingCount: Int
+}
+
+/// Intermediate response structure for posts with embedded profiles
+private struct PostResponseProfile: Decodable {
+    let post: Post
+    let profiles: Profile?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Decode post fields directly from the container
+        let id = try container.decode(UUID.self, forKey: .id)
+        let author = try container.decode(UUID.self, forKey: .author)
+        let caption = try container.decodeIfPresent(String.self, forKey: .caption)
+        let mediaKey = try container.decode(String.self, forKey: .mediaKey)
+        let mediaType = try container.decode(Post.MediaType.self, forKey: .mediaType)
+        let createdAt = try container.decode(Date.self, forKey: .createdAt)
+
+        // Create post object
+        self.post = Post(
+            id: id,
+            author: author,
+            caption: caption,
+            mediaKey: mediaKey,
+            mediaType: mediaType,
+            createdAt: createdAt
+        )
+
+        // Decode embedded profile
+        self.profiles = try container.decodeIfPresent(Profile.self, forKey: .profiles)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case author
+        case caption
+        case mediaKey = "media_key"
+        case mediaType = "media_type"
+        case createdAt = "created_at"
+        case profiles
+    }
 }
 
 // MARK: - Timeout Helper

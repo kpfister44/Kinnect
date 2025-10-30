@@ -11,7 +11,7 @@ import Combine
 import Supabase
 
 @MainActor
-final class FeedViewModel: ObservableObject {
+final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
     // MARK: - Published State
     @Published var posts: [Post] = []
     @Published var state: LoadingState = .idle
@@ -215,6 +215,12 @@ final class FeedViewModel: ObservableObject {
                 await self?.refreshCancelledImages(for: ids)
             }
         }
+    }
+
+    /// Get unique AsyncImage ID for a post
+    /// FeedView uses global viewAppearanceID (changes on tab switch)
+    func getAsyncImageID(for postID: UUID) -> String {
+        return "\(postID.uuidString)-\(viewAppearanceID.uuidString)"
     }
 
     /// Update cache with fresh posts

@@ -7,19 +7,20 @@
 
 import SwiftUI
 
-struct PostCellView: View {
+struct PostCellView<ViewModel: FeedInteractionViewModel>: View {
     let post: Post
     var mediaURL: URL? // Real Supabase URL
-    @EnvironmentObject var feedViewModel: FeedViewModel
+    @ObservedObject var viewModel: ViewModel
 
     @State private var isExpanded = false
     @State private var showingComments = false
     @State private var showDeleteConfirmation = false
     @State private var showUnfollowConfirmation = false
 
-    init(post: Post, mediaURL: URL?) {
+    init(post: Post, mediaURL: URL?, viewModel: ViewModel) {
         self.post = post
         self.mediaURL = mediaURL
+        self.viewModel = viewModel
     }
 
     private var shouldTruncate: Bool {
@@ -89,7 +90,7 @@ struct PostCellView: View {
         .sheet(isPresented: $showingComments) {
             CommentsView(
                 postId: post.id,
-                currentUserId: feedViewModel.currentUserId,
+                currentUserId: viewModel.currentUserId,
                 onCommentCountChanged: { _ in
                     // Comment count updates handled by realtime in FeedViewModel
                 }
@@ -99,7 +100,7 @@ struct PostCellView: View {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
                 Task {
-                    await feedViewModel.deletePost(post)
+                    await viewModel.deletePost(post)
                 }
             }
         } message: {
@@ -109,7 +110,7 @@ struct PostCellView: View {
             Button("Cancel", role: .cancel) { }
             Button("Unfollow", role: .destructive) {
                 Task {
-                    await feedViewModel.unfollowPostAuthor(post)
+                    await viewModel.unfollowPostAuthor(post)
                 }
             }
         } message: {
@@ -160,7 +161,7 @@ struct PostCellView: View {
                         print("❌ mediaURL provided: \(mediaURL?.absoluteString ?? "nil")")
 
                         if let urlError = error as? URLError, urlError.code == .cancelled {
-                            feedViewModel.recordImageCancellation(for: post.id)
+                            viewModel.recordImageCancellation(for: post.id)
                         }
                     }
             @unknown default:
@@ -169,13 +170,13 @@ struct PostCellView: View {
                     .aspectRatio(1, contentMode: .fit)
             }
         }
-        .id("\(post.id)-\(feedViewModel.viewAppearanceID)")
+        .id(viewModel.getAsyncImageID(for: post.id))
     }
 
     private var actionButtonsView: some View {
         HStack(spacing: 16) {
             Button {
-                feedViewModel.toggleLike(forPostID: post.id)
+                viewModel.toggleLike(forPostID: post.id)
             } label: {
                 Image(systemName: post.isLikedByCurrentUser ? "heart.fill" : "heart")
                     .font(.system(size: 24))
@@ -210,7 +211,7 @@ struct PostCellView: View {
                 }
                 .frame(width: 32, height: 32)
                 .clipShape(Circle())
-                .id("\(post.author)-avatar-\(feedViewModel.viewAppearanceID)")
+                .id("\(post.author)-avatar-\(viewModel.viewAppearanceID)")
             } else {
                 Circle()
                     .fill(Color.igSeparator)
@@ -247,7 +248,7 @@ struct PostCellView: View {
 
     private func handleThreeDotMenuTap() {
         // Check if this is the current user's post
-        let isOwnPost = post.author == feedViewModel.currentUserId
+        let isOwnPost = post.author == viewModel.currentUserId
 
         if isOwnPost {
             showDeleteConfirmation = true
@@ -300,7 +301,9 @@ struct CaptionView: View {
 
 // MARK: - Preview
 #Preview {
-    VStack(spacing: 0) {
+    let viewModel = FeedViewModel(currentUserId: UUID())
+
+    return VStack(spacing: 0) {
         PostCellView(
             post: Post(
                 id: UUID(),
@@ -321,9 +324,9 @@ struct CaptionView: View {
                 commentCount: 8,
                 isLikedByCurrentUser: false
             ),
-            mediaURL: URL(string: "https://picsum.photos/600/600")
+            mediaURL: URL(string: "https://picsum.photos/600/600"),
+            viewModel: viewModel
         )
-        .environmentObject(FeedViewModel(currentUserId: UUID()))
 
         Divider()
 
@@ -347,8 +350,8 @@ struct CaptionView: View {
                 commentCount: 0,
                 isLikedByCurrentUser: true
             ),
-            mediaURL: URL(string: "https://picsum.photos/600/600?random=2")
+            mediaURL: URL(string: "https://picsum.photos/600/600?random=2"),
+            viewModel: viewModel
         )
-        .environmentObject(FeedViewModel(currentUserId: UUID()))
     }
 }

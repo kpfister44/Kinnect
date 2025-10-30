@@ -196,9 +196,9 @@ struct FeedView: View {
                         ForEach(viewModel.posts, id: \.id) { post in
                             PostCellView(
                                 post: post,
-                                mediaURL: viewModel.getMediaURL(for: post)
+                                mediaURL: viewModel.getMediaURL(for: post),
+                                viewModel: viewModel
                             )
-                            .environmentObject(viewModel)
                             .id(post.id) // Ensure SwiftUI tracks each cell by post ID
                             .task {
                                 // Pagination: load more when reaching last post

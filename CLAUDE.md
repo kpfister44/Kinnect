@@ -388,6 +388,17 @@ Detailed documentation for completed features is available in `/docs/`. Referenc
 
 ---
 
+**`/docs/features/PROFILE_FEED_NAVIGATION.md`** - Profile Feed Navigation
+- ProfileFeedViewModel for user-specific post feeds
+- ProfileFeedView with scroll-to-post functionality
+- Instagram-style navigation (grid → feed view)
+- Protocol-based PostCellView for code reuse
+- Replaced PostDetailView with feed-style navigation
+
+**When to reference:** Profile grid navigation, scroll-to-post patterns, view model protocols, feed-style post viewing
+
+---
+
 ## Common Issues & Solutions
 
 ### PhotosPicker Sheet Presentation Race Condition

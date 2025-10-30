@@ -38,11 +38,14 @@ struct ProfilePostsGridView: View {
                     LazyVGrid(columns: columns, spacing: 1) {
                         ForEach(posts) { post in
                             NavigationLink {
-                                PostDetailView(post: post, currentUserId: currentUserId)
+                                ProfileFeedView(
+                                    userId: post.author,
+                                    initialPostId: post.id,
+                                    currentUserId: currentUserId
+                                )
                             } label: {
                                 PostGridCell(post: post, viewAppearanceID: viewAppearanceID)
                             }
-                            .environmentObject(profileViewModel)
                         }
                     }
                 }
