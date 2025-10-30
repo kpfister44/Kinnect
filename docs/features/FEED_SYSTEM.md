@@ -201,6 +201,64 @@ FeedView checks if user scrolled to last post:
 
 ## Important Bug Fixes
 
+### Post Ordering Bug (TaskGroup Completion Order) ✅ FIXED
+
+**Date Fixed:** October 30, 2025
+
+**Symptom:**
+Posts appeared in different order between Feed tab and Profile tab. For example, a post with caption "walking with mom" appeared 1st in Feed tab but 6th in Profile tab. Post order was random and changed between app launches.
+
+**Root Cause:**
+`FeedService.fetchFeed()` collected posts from TaskGroup in **completion order** (whichever async task finished first) rather than **database order** (chronological by created_at). The database query correctly ordered by `created_at DESC`, but the TaskGroup processing randomized the order.
+
+**Technical Details:**
+```swift
+// BROKEN CODE (FeedService.swift:159-162):
+for try await post in group {
+    posts.append(post)  // ❌ Appends in completion order!
+}
+```
+
+TaskGroups execute concurrently and return results as they **complete**, not in submission order. Small images or faster network requests finished first, causing posts to appear at top regardless of chronological order.
+
+**Solution:**
+Applied the same index-based collection pattern that ProfileService uses successfully:
+
+1. Pre-populate posts array in database order **before** TaskGroup processing
+2. Change TaskGroup to return `(Int, Post)` tuples with indices
+3. Update posts array at correct index instead of appending
+
+```swift
+// FIXED CODE (FeedService.swift:80-168):
+// Pre-populate posts array in database order
+var posts = postResponses.map { response in
+    var post = response.post
+    post.authorProfile = response.profiles
+    return post
+}
+
+// Return (index, post) tuples
+for (index, postResponse) in postResponses.enumerated() {
+    group.addTask {
+        // ... process post ...
+        return (index, post)  // ✅ Include index!
+    }
+}
+
+// Update at correct index (preserves database order)
+for try await (index, post) in group {
+    posts[index] = post
+}
+```
+
+**Result:** ✅ Posts now appear in correct chronological order (newest first) consistently across Feed tab and Profile tab!
+
+**Key Insight:** When using Swift concurrency TaskGroups, always use index-based updates if order matters. TaskGroup completion order is non-deterministic based on network speed and task complexity.
+
+**Location:** `FeedService.swift` - `fetchFeed()` method (lines 80-168)
+
+---
+
 ### GeometryReader Hit-Testing Issue ✅ FIXED
 
 **Symptom:**
@@ -219,6 +277,8 @@ GeometryReader in `imageView` was expanding unpredictably and overlapping the ac
 **Key Insight:** GeometryReader + AsyncImage can cause timing-based layout bugs where the reader expands to fill space before the image loads, causing overlap issues. SwiftUI's native `.aspectRatio()` modifier is more reliable.
 
 **Location:** `PostCellView.swift` - `imageView` computed property
+
+---
 
 ### Caption Type-Check Error ✅ FIXED
 

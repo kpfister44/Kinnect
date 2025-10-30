@@ -77,11 +77,17 @@ final class FeedService {
         // Transform responses into fully-formed Post objects
         // Use detached task so it completes even if view disappears (prevents partial cache)
         return try await Task.detached { [postResponses, currentUserId, client] in
-            return try await withThrowingTaskGroup(of: Post.self) { group in
-                var posts: [Post] = []
+            return try await withThrowingTaskGroup(of: (Int, Post).self) { group in
+                // Pre-populate posts array in database order (preserves chronological ordering)
+                var posts = postResponses.map { response in
+                    var post = response.post
+                    post.authorProfile = response.profiles
+                    return post
+                }
 
                 // Add all posts to task group for concurrent processing
-                for postResponse in postResponses {
+                // Return (index, post) tuples to preserve database ordering
+                for (index, postResponse) in postResponses.enumerated() {
                     group.addTask {
                         do {
                             var post = postResponse.post
@@ -146,19 +152,19 @@ final class FeedService {
                                 try await dataGroup.waitForAll()
                             }
 
-                            return post
+                            return (index, post)
                         } catch {
                             print("⚠️ Failed to process post \(postResponse.post.id): \(error)")
                             var fallback = postResponse.post
                             fallback.authorProfile = postResponse.profiles
-                            return fallback
+                            return (index, fallback)
                         }
                     }
                 }
 
-                // Collect all results
-                for try await post in group {
-                    posts.append(post)
+                // Update posts at correct index (preserves database order)
+                for try await (index, post) in group {
+                    posts[index] = post
                 }
 
                 let incompleteIDs = posts.filter { $0.mediaURL == nil }.map { $0.id }
