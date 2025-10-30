@@ -401,3 +401,9 @@ Without timestamp query param, iOS aggressively caches images. Users would see o
 - PostDetailView for full-screen post viewing
 - Like/comment functionality in detail view
 - Navigation from grid to detail view
+
+**October 30, 2025** - Cross-view synchronization fixes
+- ProfileViewModel now listens for `.userDidDeletePost` notification
+- ProfileViewModel now listens for `.userDidCreatePost` notification
+- Profile grid updates immediately when posts are created or deleted from any view
+- No app restart needed for grid to stay synchronized with other views

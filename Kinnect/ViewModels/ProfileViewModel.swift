@@ -219,6 +219,31 @@ final class ProfileViewModel: ObservableObject {
                 }
             }
         }
+
+        // Listen for post creation to invalidate cache for that user
+        NotificationCenter.default.addObserver(
+            forName: .userDidCreatePost,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let userId = notification.object as? UUID else { return }
+
+            print("📡 ProfileViewModel received post creation notification for user: \(userId)")
+
+            // Invalidate cache for the user who created the post
+            self.invalidateCache(for: userId)
+            print("✅ Invalidated cache for user: \(userId)")
+
+            // If currently viewing this user's profile, refresh immediately to show new post
+            if self.profile?.id == userId {
+                print("📡 Currently viewing this user's profile - triggering refresh")
+                Task {
+                    await self.loadProfile(userId: userId, forceRefresh: true)
+                    print("✅ Reloaded profile for user: \(userId) - new post should now appear")
+                }
+            }
+        }
     }
 
     // MARK: - Profile Loading
