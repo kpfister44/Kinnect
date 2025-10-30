@@ -156,6 +156,11 @@ final class ProfileFeedViewModel: ObservableObject, FeedInteractionViewModel {
                 mediaKey: post.mediaKey
             )
             print("✅ Post deletion successful")
+
+            // Step 4: Notify other ViewModels about deletion
+            NotificationCenter.default.post(name: .userDidDeletePost, object: post.id)
+            print("📡 Posted userDidDeletePost notification for post: \(post.id)")
+
             // Keep UI state (post already removed)
 
         } catch {

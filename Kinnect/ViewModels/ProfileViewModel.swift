@@ -181,6 +181,44 @@ final class ProfileViewModel: ObservableObject {
             self?.invalidateAllCaches()
             print("🗑️ All profile caches cleared on logout")
         }
+
+        // Listen for post deletions from other views (FeedView, ProfileFeedView)
+        NotificationCenter.default.addObserver(
+            forName: .userDidDeletePost,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let postId = notification.object as? UUID else { return }
+
+            print("📡 ProfileViewModel received deletion notification for post: \(postId)")
+
+            // Remove from current posts array
+            let removedFromPosts = self.posts.contains(where: { $0.id == postId })
+            self.posts.removeAll(where: { $0.id == postId })
+
+            if removedFromPosts {
+                print("✅ Removed post \(postId) from ProfileViewModel.posts array")
+            }
+
+            // Remove from all cached profiles (since we cache multiple users)
+            for (userId, cached) in self.profileCache {
+                let hadPost = cached.posts.contains(where: { $0.id == postId })
+                if hadPost {
+                    var updatedPosts = cached.posts
+                    updatedPosts.removeAll(where: { $0.id == postId })
+
+                    let updatedCache = CachedProfileData(
+                        profile: cached.profile,
+                        posts: updatedPosts,
+                        stats: cached.stats,
+                        timestamp: cached.timestamp
+                    )
+                    self.profileCache[userId] = updatedCache
+                    print("✅ Removed post \(postId) from cache for user: \(userId)")
+                }
+            }
+        }
     }
 
     // MARK: - Profile Loading

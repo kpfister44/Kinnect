@@ -16,4 +16,7 @@ extension Notification.Name {
 
     /// Posted when user updates their profile (avatar, etc.) - used to refresh feed cache
     static let userDidUpdateProfile = Notification.Name("userDidUpdateProfile")
+
+    /// Posted when user deletes a post - used to sync deletion across ViewModels
+    static let userDidDeletePost = Notification.Name("userDidDeletePost")
 }

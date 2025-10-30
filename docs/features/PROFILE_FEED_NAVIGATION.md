@@ -518,7 +518,7 @@ After implementation, verify:
 - ✅ **Bug #2:** Usernames show as "Unknown" for all posts - **FIXED** (October 29, 2025)
 - ✅ **Bug #3:** Nav title doesn't match Instagram design - **FIXED** (October 30, 2025)
 - 🔴 **Bug #4:** Like counts don't display after liking (High priority - UX)
-- 🔴 **Bug #5:** Deleted posts don't refresh properly (High priority - UX)
+- ✅ **Bug #5:** Deleted posts don't refresh properly - **FIXED** (October 30, 2025)
 
 ---
 
@@ -710,63 +710,77 @@ Added custom navigation title using `.toolbar` with centered VStack that display
 
 ---
 
-### 5. Delete Post - Doesn't Refresh Views Properly
+### 5. Delete Post - Doesn't Refresh Views Properly - ✅ FIXED
 
-**Symptom:** Deleting a post from ProfileFeedView appears to not work immediately. Deleted post only disappears after navigating to Feed tab or Profile tab and a new API call happens.
+**Status:** ✅ FIXED (October 30, 2025)
 
-**Confirmed Behavior:**
-- ✅ Confirmation dialog appears correctly
-- ✅ Post DOES delete from database successfully
-- ❌ ProfileFeedView doesn't remove post from UI after delete
-- ❌ Profile grid (ProfileViewModel) doesn't refresh after returning from ProfileFeedView
-- ❌ User can't tell post was deleted until they manually trigger an API refresh
+**Symptom:**
+- Deleting a post from ProfileFeedView removed it from that view, but not from FeedView or Profile grid
+- Deleting a post from FeedView removed it from that view, but not from Profile grid
+- User had to close and reopen app to see deletion reflected across all views
 
-**Expected Behavior (like FeedView):**
-- Post should disappear from ProfileFeedView immediately after successful delete (optimistic UI already does this in FeedViewModel)
-- When user navigates back to profile grid, the grid should refresh to remove the deleted post
-- No manual API call should be needed
+**Root Cause Analysis (Systematic Debugging):**
 
-**Root Cause:**
-ProfileFeedView and ProfileViewModel are not communicating post deletion. FeedView works because it directly updates its own posts array. ProfileFeedView needs to:
-1. Dismiss the view after successful delete (so user returns to profile grid)
-2. Notify parent ProfileViewModel to refresh its posts
+**Phase 1: Root Cause Investigation**
+- FeedViewModel has `deletePost()` that optimistically removes post from its own `posts` array ✅
+- ProfileFeedViewModel has `deletePost()` that optimistically removes post from its own `posts` array ✅
+- ProfileViewModel has NO `deletePost()` method and NO notification listener ❌
+- Each ViewModel only updates its own state - no cross-ViewModel communication
 
-**Priority:** High (UX confusion - user thinks delete failed)
+**Phase 2: Pattern Analysis**
+- Found existing NotificationCenter pattern used successfully for other events:
+  - `.userDidLogout` - clears caches across ViewModels
+  - `.userDidCreatePost` - shows refresh banner in FeedView
+  - `.userDidUpdateProfile` - shows refresh banner in FeedView
+- These patterns work because they broadcast events that multiple ViewModels listen to
+- Post deletion had NO notification, so ViewModels never knew about deletions elsewhere
 
-**Solution Approaches:**
+**Phase 3: Hypothesis**
+"Adding a `.userDidDeletePost` NotificationCenter notification will synchronize post deletions across all ViewModels, fixing the issue where ProfileViewModel's grid doesn't update after deletions."
 
-**Option 1: Dismiss + Refresh on Navigation Return**
-```swift
-// In ProfileFeedViewModel.deletePost()
-await postService.deletePost(...)
-// Dismiss view after successful delete
-dismiss()
+**Phase 4: Implementation**
 
-// In ProfileView.swift
-.task {
-    // Refresh when returning from navigation
-    await profileViewModel.refresh()
-}
-```
+**Solution Implemented: NotificationCenter Pattern (Option 2)**
 
-**Option 2: NotificationCenter Pattern**
-```swift
-// Post notification after successful delete
-NotificationCenter.default.post(name: .postDidDelete, object: postId)
+1. **Notification+Extensions.swift:21** - Added `.userDidDeletePost` notification
+   ```swift
+   static let userDidDeletePost = Notification.Name("userDidDeletePost")
+   ```
 
-// ProfileViewModel listens and refreshes
-```
+2. **FeedViewModel.swift:822-824** - Post notification after successful deletion
+   ```swift
+   NotificationCenter.default.post(name: .userDidDeletePost, object: post.id)
+   ```
 
-**Option 3: Callback Pattern**
-```swift
-// Pass callback to ProfileFeedView
-ProfileFeedView(..., onPostDeleted: { postId in
-    // Remove from profile grid
-    await profileViewModel.removePost(postId)
-})
-```
+3. **ProfileFeedViewModel.swift:160-162** - Post notification after successful deletion
+   ```swift
+   NotificationCenter.default.post(name: .userDidDeletePost, object: post.id)
+   ```
 
-**Recommendation:** Option 1 is simplest - ProfileFeedView should dismiss after delete, and ProfileView should refresh on return (using `.task` modifier which runs on view appear).
+4. **ProfileViewModel.swift:185-221** - Added listener to remove deleted posts
+   - Removes from `posts` array
+   - Removes from all cached profiles
+   - Logs removal for debugging
+
+5. **FeedViewModel.swift:131-157** - Added listener to remove deleted posts
+   - Removes from `posts` array
+   - Removes from `cachedPosts` array
+   - Logs removal for debugging
+
+**Files Modified:**
+- `Kinnect/Utilities/Extensions/Notification+Extensions.swift` - Added notification
+- `Kinnect/ViewModels/FeedViewModel.swift` - Post and listen for notifications
+- `Kinnect/ViewModels/ProfileFeedViewModel.swift` - Post notification
+- `Kinnect/ViewModels/ProfileViewModel.swift` - Listen for notification
+
+**Why This Works:**
+1. Each ViewModel posts `.userDidDeletePost` notification after successful deletion
+2. All other ViewModels listen for this notification
+3. When notification received, each ViewModel removes the post from its own state
+4. Decoupled design - no direct dependencies between ViewModels
+5. Follows existing patterns already proven in codebase
+
+**Verification:** ✅ All views synchronize immediately on deletion, no app restart needed
 
 ---
 

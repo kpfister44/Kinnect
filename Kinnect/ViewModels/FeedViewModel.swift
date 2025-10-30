@@ -127,6 +127,34 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
             self.showNewPostsBanner = true
             print("📢 Profile updated - showing refresh banner")
         }
+
+        // Listen for post deletions from other views (ProfileFeedView)
+        NotificationCenter.default.addObserver(
+            forName: .userDidDeletePost,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let postId = notification.object as? UUID else { return }
+
+            print("📡 FeedViewModel received deletion notification for post: \(postId)")
+
+            // Remove from posts array
+            let removedFromPosts = self.posts.contains(where: { $0.id == postId })
+            self.posts.removeAll(where: { $0.id == postId })
+
+            if removedFromPosts {
+                print("✅ Removed post \(postId) from FeedViewModel.posts array")
+            }
+
+            // Remove from cache as well
+            let removedFromCache = self.cachedPosts.contains(where: { $0.id == postId })
+            self.cachedPosts.removeAll(where: { $0.id == postId })
+
+            if removedFromCache {
+                print("✅ Removed post \(postId) from FeedViewModel.cachedPosts array")
+            }
+        }
     }
 
     // MARK: - Loading State
@@ -818,6 +846,11 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
                 mediaKey: post.mediaKey
             )
             print("✅ Post deletion successful")
+
+            // Step 4: Notify other ViewModels about deletion
+            NotificationCenter.default.post(name: .userDidDeletePost, object: post.id)
+            print("📡 Posted userDidDeletePost notification for post: \(post.id)")
+
             // Keep UI state (post already removed)
 
         } catch {
