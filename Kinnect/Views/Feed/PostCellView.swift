@@ -91,8 +91,10 @@ struct PostCellView<ViewModel: FeedInteractionViewModel>: View {
             CommentsView(
                 postId: post.id,
                 currentUserId: viewModel.currentUserId,
-                onCommentCountChanged: { _ in
-                    // Comment count updates handled by realtime in FeedViewModel
+                source: viewModel.viewModelSource,
+                onCommentCountChanged: { newCount in
+                    // Update comment count optimistically
+                    viewModel.updateCommentCount(for: post.id, newCount: newCount)
                 }
             )
         }

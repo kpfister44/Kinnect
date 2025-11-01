@@ -23,6 +23,9 @@ final class ProfileFeedViewModel: ObservableObject, FeedInteractionViewModel {
     /// Track reload counter per post - increment on cancellation to force new AsyncImage
     private var postReloadCounters: [UUID: Int] = [:]
 
+    // MARK: - View Model Source (Bug Fix #2: Prevent self-notification double-counting)
+    let viewModelSource: ViewModelSource = .profileFeedViewModel
+
     // MARK: - Dependencies
     private let profileService: ProfileService
     private let likeService: LikeService
@@ -58,6 +61,114 @@ final class ProfileFeedViewModel: ObservableObject, FeedInteractionViewModel {
         self.likeService = likeService ?? .shared
         self.postService = postService ?? .shared
         self.followService = followService ?? .shared
+
+        setupNotificationObservers()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    // MARK: - Notification Observers
+
+    private func setupNotificationObservers() {
+        // Listen for likes from other views (FeedView)
+        NotificationCenter.default.addObserver(
+            forName: .userDidLikePost,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let payload = notification.object as? LikeNotificationPayload else { return }
+
+            // Skip self-notifications (already handled optimistically)
+            guard payload.source != .profileFeedViewModel else {
+                print("⏭️ ProfileFeedViewModel skipping own like notification for post: \(payload.postId)")
+                return
+            }
+
+            print("📡 ProfileFeedViewModel received like notification from \(payload.source.rawValue) for post: \(payload.postId)")
+
+            // Update like count and liked state
+            if let index = self.posts.firstIndex(where: { $0.id == payload.postId }) {
+                self.posts[index].isLikedByCurrentUser = true
+                self.posts[index].likeCount += 1
+                print("✅ Updated like in ProfileFeedViewModel for post: \(payload.postId)")
+            }
+        }
+
+        // Listen for unlikes from other views
+        NotificationCenter.default.addObserver(
+            forName: .userDidUnlikePost,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let payload = notification.object as? LikeNotificationPayload else { return }
+
+            // Skip self-notifications (already handled optimistically)
+            guard payload.source != .profileFeedViewModel else {
+                print("⏭️ ProfileFeedViewModel skipping own unlike notification for post: \(payload.postId)")
+                return
+            }
+
+            print("📡 ProfileFeedViewModel received unlike notification from \(payload.source.rawValue) for post: \(payload.postId)")
+
+            // Update like count and liked state
+            if let index = self.posts.firstIndex(where: { $0.id == payload.postId }) {
+                self.posts[index].isLikedByCurrentUser = false
+                self.posts[index].likeCount = max(0, self.posts[index].likeCount - 1)
+                print("✅ Updated unlike in ProfileFeedViewModel for post: \(payload.postId)")
+            }
+        }
+
+        // Listen for comments from other views
+        NotificationCenter.default.addObserver(
+            forName: .userDidCommentOnPost,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let payload = notification.object as? CommentNotificationPayload else { return }
+
+            // Skip self-notifications (already handled optimistically)
+            guard payload.source != .profileFeedViewModel else {
+                print("⏭️ ProfileFeedViewModel skipping own comment notification for post: \(payload.postId)")
+                return
+            }
+
+            print("📡 ProfileFeedViewModel received comment notification from \(payload.source.rawValue) for post: \(payload.postId)")
+
+            // Update comment count
+            if let index = self.posts.firstIndex(where: { $0.id == payload.postId }) {
+                self.posts[index].commentCount += 1
+                print("✅ Incremented comment count in ProfileFeedViewModel for post: \(payload.postId)")
+            }
+        }
+
+        // Listen for comment deletions from other views
+        NotificationCenter.default.addObserver(
+            forName: .userDidDeleteComment,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let payload = notification.object as? CommentNotificationPayload else { return }
+
+            // Skip self-notifications (already handled optimistically)
+            guard payload.source != .profileFeedViewModel else {
+                print("⏭️ ProfileFeedViewModel skipping own comment deletion notification for post: \(payload.postId)")
+                return
+            }
+
+            print("📡 ProfileFeedViewModel received comment deletion notification from \(payload.source.rawValue) for post: \(payload.postId)")
+
+            // Update comment count
+            if let index = self.posts.firstIndex(where: { $0.id == payload.postId }) {
+                self.posts[index].commentCount = max(0, self.posts[index].commentCount - 1)
+                print("✅ Decremented comment count in ProfileFeedViewModel for post: \(payload.postId)")
+            }
+        }
     }
 
     // MARK: - Public Methods
@@ -70,8 +181,8 @@ final class ProfileFeedViewModel: ObservableObject, FeedInteractionViewModel {
         errorMessage = nil
 
         do {
-            // Fetch all posts for this user (ProfileService handles signed URLs)
-            let fetchedPosts = try await profileService.fetchUserPosts(userId: userId)
+            // Fetch all posts for this user (ProfileService handles signed URLs and like/comment counts)
+            let fetchedPosts = try await profileService.fetchUserPosts(userId: userId, currentUserId: currentUserId)
 
             // Posts are already sorted newest-first by ProfileService
             posts = fetchedPosts
@@ -123,6 +234,17 @@ final class ProfileFeedViewModel: ObservableObject, FeedInteractionViewModel {
                 }
 
                 print("✅ Like toggled successfully: \(newLikedState ? "liked" : "unliked")")
+
+                // Notify other ViewModels about like state change (with source to prevent self-notification)
+                if newLikedState {
+                    let payload = LikeNotificationPayload(postId: postID, source: .profileFeedViewModel)
+                    NotificationCenter.default.post(name: .userDidLikePost, object: payload)
+                    print("📡 Posted userDidLikePost notification for post: \(postID) from ProfileFeedViewModel")
+                } else {
+                    let payload = LikeNotificationPayload(postId: postID, source: .profileFeedViewModel)
+                    NotificationCenter.default.post(name: .userDidUnlikePost, object: payload)
+                    print("📡 Posted userDidUnlikePost notification for post: \(postID) from ProfileFeedViewModel")
+                }
             } catch {
                 print("❌ Failed to toggle like: \(error)")
 
@@ -134,6 +256,16 @@ final class ProfileFeedViewModel: ObservableObject, FeedInteractionViewModel {
                 errorMessage = "Failed to \(previousLikedState ? "unlike" : "like") post. Please try again."
             }
         }
+    }
+
+    /// Update comment count for a post (optimistic update from CommentViewModel)
+    func updateCommentCount(for postId: UUID, newCount: Int) {
+        // Update posts array
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].commentCount = newCount
+        }
+
+        print("✅ Updated comment count to \(newCount) for post: \(postId)")
     }
 
     /// Delete a post (optimistic UI)

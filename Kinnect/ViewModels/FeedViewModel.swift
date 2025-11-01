@@ -21,6 +21,9 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
     /// Changes when view appears to force AsyncImage recreation and bypass cached failure states
     @Published var viewAppearanceID = UUID()
 
+    // MARK: - View Model Source (Bug Fix #2: Prevent self-notification double-counting)
+    let viewModelSource: ViewModelSource = .feedViewModel
+
     /// Track if view is currently visible to avoid unnecessary AsyncImage reloads
     private var isViewVisible = false
 
@@ -153,6 +156,126 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
 
             if removedFromCache {
                 print("✅ Removed post \(postId) from FeedViewModel.cachedPosts array")
+            }
+        }
+
+        // Listen for likes from other views (ProfileFeedView)
+        NotificationCenter.default.addObserver(
+            forName: .userDidLikePost,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let payload = notification.object as? LikeNotificationPayload else { return }
+
+            // Skip self-notifications (already handled optimistically)
+            guard payload.source != .feedViewModel else {
+                print("⏭️ FeedViewModel skipping own like notification for post: \(payload.postId)")
+                return
+            }
+
+            print("📡 FeedViewModel received like notification from \(payload.source.rawValue) for post: \(payload.postId)")
+
+            // Update like count and liked state
+            if let index = self.posts.firstIndex(where: { $0.id == payload.postId }) {
+                self.posts[index].isLikedByCurrentUser = true
+                self.posts[index].likeCount += 1
+                print("✅ Updated like in FeedViewModel for post: \(payload.postId)")
+            }
+
+            // Update cache as well
+            if let cacheIndex = self.cachedPosts.firstIndex(where: { $0.id == payload.postId }) {
+                self.cachedPosts[cacheIndex].isLikedByCurrentUser = true
+                self.cachedPosts[cacheIndex].likeCount += 1
+            }
+        }
+
+        // Listen for unlikes from other views
+        NotificationCenter.default.addObserver(
+            forName: .userDidUnlikePost,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let payload = notification.object as? LikeNotificationPayload else { return }
+
+            // Skip self-notifications (already handled optimistically)
+            guard payload.source != .feedViewModel else {
+                print("⏭️ FeedViewModel skipping own unlike notification for post: \(payload.postId)")
+                return
+            }
+
+            print("📡 FeedViewModel received unlike notification from \(payload.source.rawValue) for post: \(payload.postId)")
+
+            // Update like count and liked state
+            if let index = self.posts.firstIndex(where: { $0.id == payload.postId }) {
+                self.posts[index].isLikedByCurrentUser = false
+                self.posts[index].likeCount = max(0, self.posts[index].likeCount - 1)
+                print("✅ Updated unlike in FeedViewModel for post: \(payload.postId)")
+            }
+
+            // Update cache as well
+            if let cacheIndex = self.cachedPosts.firstIndex(where: { $0.id == payload.postId }) {
+                self.cachedPosts[cacheIndex].isLikedByCurrentUser = false
+                self.cachedPosts[cacheIndex].likeCount = max(0, self.cachedPosts[cacheIndex].likeCount - 1)
+            }
+        }
+
+        // Listen for comments from other views
+        NotificationCenter.default.addObserver(
+            forName: .userDidCommentOnPost,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let payload = notification.object as? CommentNotificationPayload else { return }
+
+            // Skip self-notifications (already handled optimistically)
+            guard payload.source != .feedViewModel else {
+                print("⏭️ FeedViewModel skipping own comment notification for post: \(payload.postId)")
+                return
+            }
+
+            print("📡 FeedViewModel received comment notification from \(payload.source.rawValue) for post: \(payload.postId)")
+
+            // Update comment count
+            if let index = self.posts.firstIndex(where: { $0.id == payload.postId }) {
+                self.posts[index].commentCount += 1
+                print("✅ Incremented comment count in FeedViewModel for post: \(payload.postId)")
+            }
+
+            // Update cache as well
+            if let cacheIndex = self.cachedPosts.firstIndex(where: { $0.id == payload.postId }) {
+                self.cachedPosts[cacheIndex].commentCount += 1
+            }
+        }
+
+        // Listen for comment deletions from other views
+        NotificationCenter.default.addObserver(
+            forName: .userDidDeleteComment,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let payload = notification.object as? CommentNotificationPayload else { return }
+
+            // Skip self-notifications (already handled optimistically)
+            guard payload.source != .feedViewModel else {
+                print("⏭️ FeedViewModel skipping own comment deletion notification for post: \(payload.postId)")
+                return
+            }
+
+            print("📡 FeedViewModel received comment deletion notification from \(payload.source.rawValue) for post: \(payload.postId)")
+
+            // Update comment count
+            if let index = self.posts.firstIndex(where: { $0.id == payload.postId }) {
+                self.posts[index].commentCount = max(0, self.posts[index].commentCount - 1)
+                print("✅ Decremented comment count in FeedViewModel for post: \(payload.postId)")
+            }
+
+            // Update cache as well
+            if let cacheIndex = self.cachedPosts.firstIndex(where: { $0.id == payload.postId }) {
+                self.cachedPosts[cacheIndex].commentCount = max(0, self.cachedPosts[cacheIndex].commentCount - 1)
             }
         }
     }
@@ -526,6 +649,17 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
                 }
 
                 print("✅ Like toggled successfully: \(newLikedState ? "liked" : "unliked")")
+
+                // Notify other ViewModels about like state change (with source to prevent self-notification)
+                if newLikedState {
+                    let payload = LikeNotificationPayload(postId: postID, source: .feedViewModel)
+                    NotificationCenter.default.post(name: .userDidLikePost, object: payload)
+                    print("📡 Posted userDidLikePost notification for post: \(postID) from FeedViewModel")
+                } else {
+                    let payload = LikeNotificationPayload(postId: postID, source: .feedViewModel)
+                    NotificationCenter.default.post(name: .userDidUnlikePost, object: payload)
+                    print("📡 Posted userDidUnlikePost notification for post: \(postID) from FeedViewModel")
+                }
             } catch {
                 print("❌ Failed to toggle like: \(error)")
 
@@ -543,6 +677,21 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
                 errorMessage = "Failed to \(previousLikedState ? "unlike" : "like") post. Please try again."
             }
         }
+    }
+
+    /// Update comment count for a post (optimistic update from CommentViewModel)
+    func updateCommentCount(for postId: UUID, newCount: Int) {
+        // Update posts array
+        if let index = posts.firstIndex(where: { $0.id == postId }) {
+            posts[index].commentCount = newCount
+        }
+
+        // Update cache as well
+        if let cacheIndex = cachedPosts.firstIndex(where: { $0.id == postId }) {
+            cachedPosts[cacheIndex].commentCount = newCount
+        }
+
+        print("✅ Updated comment count to \(newCount) for post: \(postId)")
     }
 
     // MARK: - Realtime Updates (Phase 9)
@@ -663,12 +812,14 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
 
                     // Extract values from dictionary
                     guard let postIdString = insertAction.record["post_id"]?.value as? String,
-                          let postId = UUID(uuidString: postIdString) else {
+                          let postId = UUID(uuidString: postIdString),
+                          let userIdString = insertAction.record["user_id"]?.value as? String,
+                          let userId = UUID(uuidString: userIdString) else {
                         print("❌ Failed to parse comment insert event")
                         continue
                     }
 
-                    await handleCommentInsertEvent(postId: postId)
+                    await handleCommentInsertEvent(postId: postId, userId: userId)
                 }
             } catch {
                 print("❌ Comment insert subscription error: \(error)")
@@ -682,12 +833,14 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
 
                     // Extract values from dictionary
                     guard let postIdString = deleteAction.oldRecord["post_id"]?.value as? String,
-                          let postId = UUID(uuidString: postIdString) else {
+                          let postId = UUID(uuidString: postIdString),
+                          let userIdString = deleteAction.oldRecord["user_id"]?.value as? String,
+                          let userId = UUID(uuidString: userIdString) else {
                         print("❌ Failed to parse comment delete event")
                         continue
                     }
 
-                    await handleCommentDeleteEvent(postId: postId)
+                    await handleCommentDeleteEvent(postId: postId, userId: userId)
                 }
             } catch {
                 print("❌ Comment delete subscription error: \(error)")
@@ -768,7 +921,13 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
 
     /// Handle comment insert event
     @MainActor
-    private func handleCommentInsertEvent(postId: UUID) async {
+    private func handleCommentInsertEvent(postId: UUID, userId: UUID) async {
+        // Skip if current user (already handled optimistically via callback)
+        guard userId != currentUserId else {
+            print("📡 Ignoring own comment event (handled optimistically)")
+            return
+        }
+
         // Update posts array
         if let index = posts.firstIndex(where: { $0.id == postId }) {
             posts[index].commentCount += 1
@@ -779,12 +938,18 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
             cachedPosts[cacheIndex].commentCount += 1
         }
 
-        print("📡 Comment added to post \(postId)")
+        print("📡 Comment added to post \(postId) by user \(userId)")
     }
 
     /// Handle comment delete event
     @MainActor
-    private func handleCommentDeleteEvent(postId: UUID) async {
+    private func handleCommentDeleteEvent(postId: UUID, userId: UUID) async {
+        // Skip if current user (already handled optimistically via callback)
+        guard userId != currentUserId else {
+            print("📡 Ignoring own comment deletion event (handled optimistically)")
+            return
+        }
+
         // Update posts array
         if let index = posts.firstIndex(where: { $0.id == postId }) {
             posts[index].commentCount = max(0, posts[index].commentCount - 1)
@@ -795,7 +960,7 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
             cachedPosts[cacheIndex].commentCount = max(0, cachedPosts[cacheIndex].commentCount - 1)
         }
 
-        print("📡 Comment removed from post \(postId)")
+        print("📡 Comment removed from post \(postId) by user \(userId)")
     }
 
     /// Scroll to top and load new posts (triggered by banner tap)

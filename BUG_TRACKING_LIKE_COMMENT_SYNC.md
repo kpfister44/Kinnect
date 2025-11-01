@@ -1,7 +1,7 @@
 # Bug Tracking: Like/Comment Synchronization Issues
 
 **Date Discovered:** October 30, 2025
-**Status:** 🔴 Active - Needs Fix
+**Status:** ✅ All Bugs Fixed (Bug #1 & #2 on Oct 31, Bug #3 on Nov 1)
 
 ---
 
@@ -228,12 +228,27 @@ NOT:
 
 - ✅ **Fixed (October 30):** Post deletion synchronization (Bug #5)
 - ✅ **Fixed (October 30):** Post creation synchronization
-- 🔴 **Active:** Like/comment synchronization issues (this document)
+- ✅ **Fixed (October 31):** Bug #1 - ProfileFeedView not showing like/comment counts (ProfileService.fetchUserPosts now fetches counts)
+- ✅ **Fixed (October 31):** Bug #2 - Double-counting likes/comments (Added self-skip notification pattern)
+- ✅ **Fixed (November 1):** Bug #3 - Comment count synchronization (See BUG_TRACKING_COMMENT_COUNT_SYNC.md)
 
 ---
 
-**Next Session Action Items:**
-1. Implement self-skip logic for NotificationCenter observers (Option 1 recommended)
-2. Test that ProfileFeedView properly receives notifications after fix
-3. Verify no double-counting in any scenario
-4. Update this document with fix details and mark as resolved
+## Status Update (October 31, 2025):
+
+**Bug #1 (ProfileFeedView not receiving updates):** ✅ FIXED
+- Root cause: ProfileService wasn't fetching like/comment counts at all
+- Solution: Updated ProfileService.fetchUserPosts() to fetch counts like FeedService does
+
+**Bug #2 (Double-counting):** ✅ FIXED
+- Root cause: ViewModels received their own notifications causing double-counting
+- Solution: Added source identification to notification payloads with self-skip logic
+- Files: Notification+Extensions.swift, FeedViewModel.swift, ProfileFeedViewModel.swift, CommentViewModel.swift
+
+**Bug #3 (Comment sync regression):** ✅ FIXED (November 1)
+- Created while fixing comment deletion sync
+- Comment counts not updating correctly in "View all X comments" text
+- Root cause: PostCellView callback was empty no-op, self-notifications skipped, realtime had no self-skip
+- Solution: Implemented callback to call updateCommentCount(), added realtime self-skip (mirrored likes pattern)
+- Files: FeedInteractionViewModel.swift, FeedViewModel.swift, ProfileFeedViewModel.swift, PostCellView.swift
+- See detailed analysis in `/BUG_TRACKING_COMMENT_COUNT_SYNC.md`
