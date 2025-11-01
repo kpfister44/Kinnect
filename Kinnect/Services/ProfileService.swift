@@ -150,11 +150,13 @@ final class ProfileService {
     /// Fetch posts for a specific user (for profile grid display)
     /// - Parameters:
     ///   - userId: The user ID whose posts to fetch
+    ///   - currentUserId: The current user's ID (for like status, optional)
     ///   - limit: Number of posts to fetch (default: 100)
     ///   - offset: Offset for pagination (default: 0)
-    /// - Returns: Array of Post objects with signed URLs
+    /// - Returns: Array of Post objects with signed URLs, like counts, and comment counts
     func fetchUserPosts(
         userId: UUID,
+        currentUserId: UUID?,
         limit: Int = 100,
         offset: Int = 0
     ) async throws -> [Post] {
@@ -185,52 +187,107 @@ final class ProfileService {
 
         print("✅ Fetched \(postResponses.count) posts")
 
-        // Add signed URLs for each post using detached task to survive view disappearance
-        return try await Task.detached { [postResponses, client] in
-            return try await withThrowingTaskGroup(of: (Int, URL?).self) { group in
-                // Create posts array with author profiles populated
-                var postsWithURLs = postResponses.map { response in
+        // Transform responses into fully-formed Post objects with all data
+        // Use detached task so it completes even if view disappears
+        return try await Task.detached { [postResponses, currentUserId, client] in
+            return try await withThrowingTaskGroup(of: (Int, Post).self) { group in
+                // Pre-populate posts array with author profiles
+                var posts = postResponses.map { response in
                     var post = response.post
                     post.authorProfile = response.profiles
                     return post
                 }
 
-                // Add all posts to task group for concurrent signed URL fetching
-                for (index, post) in postsWithURLs.enumerated() {
+                // Add all posts to task group for concurrent data fetching
+                // Return (index, post) tuples to preserve database ordering
+                for (index, postResponse) in postResponses.enumerated() {
                     group.addTask {
                         do {
-                            let signedURL = try await withTimeout(seconds: 10) {
-                                try await client.storage
-                                    .from("posts")
-                                    .createSignedURL(path: post.mediaKey, expiresIn: 3600)
+                            var post = postResponse.post
+                            post.authorProfile = postResponse.profiles
+
+                            // Fetch all post data concurrently with timeout
+                            try await withThrowingTaskGroup(of: Void.self) { dataGroup in
+                                // Fetch signed URL with timeout
+                                dataGroup.addTask {
+                                    post.mediaURL = try await withTimeout(seconds: 10) {
+                                        try await client.storage
+                                            .from("posts")
+                                            .createSignedURL(path: post.mediaKey, expiresIn: 3600)
+                                    }
+                                }
+
+                                // Fetch like count with timeout
+                                dataGroup.addTask {
+                                    post.likeCount = try await withTimeout(seconds: 10) {
+                                        let response = try await client
+                                            .from("likes")
+                                            .select("*", head: true, count: .exact)
+                                            .eq("post_id", value: post.id.uuidString)
+                                            .execute()
+                                        return response.count ?? 0
+                                    }
+                                }
+
+                                // Fetch comment count with timeout
+                                dataGroup.addTask {
+                                    post.commentCount = try await withTimeout(seconds: 10) {
+                                        let response = try await client
+                                            .from("comments")
+                                            .select("*", head: true, count: .exact)
+                                            .eq("post_id", value: post.id.uuidString)
+                                            .execute()
+                                        return response.count ?? 0
+                                    }
+                                }
+
+                                // Fetch current user's like status with timeout (if currentUserId provided)
+                                if let currentUserId = currentUserId {
+                                    dataGroup.addTask {
+                                        post.isLikedByCurrentUser = try await withTimeout(seconds: 10) {
+                                            let response = try await client
+                                                .from("likes")
+                                                .select("*", head: true, count: .exact)
+                                                .eq("post_id", value: post.id.uuidString)
+                                                .eq("user_id", value: currentUserId.uuidString)
+                                                .execute()
+                                            return (response.count ?? 0) > 0
+                                        }
+                                    }
+                                }
+
+                                // Wait for all data fetching to complete
+                                try await dataGroup.waitForAll()
                             }
-                            return (index, signedURL)
+
+                            return (index, post)
+
                         } catch {
-                            print("⚠️ Failed to get signed URL for post \(post.id): \(error)")
-                            return (index, nil)
+                            print("⚠️ Failed to fetch complete data for post \(postResponse.post.id): \(error)")
+                            // Return post with whatever data we have
+                            var post = postResponse.post
+                            post.authorProfile = postResponse.profiles
+                            return (index, post)
                         }
                     }
                 }
 
-                // Collect all results
-                for try await (index, signedURL) in group {
-                    if let signedURL = signedURL {
-                        postsWithURLs[index].mediaURL = signedURL
-                    }
+                // Collect all results in order
+                for try await (index, updatedPost) in group {
+                    posts[index] = updatedPost
                 }
 
-                // Return whatever posts we successfully processed
-                // Some posts may fail (404, etc.) - that's expected behavior
-                let validPostsCount = postsWithURLs.filter { $0.mediaURL != nil }.count
-                let failedCount = postsWithURLs.count - validPostsCount
+                // Log completion stats
+                let postsWithURLs = posts.filter { $0.mediaURL != nil }.count
+                let failedURLs = posts.count - postsWithURLs
 
-                if failedCount > 0 {
-                    print("⚠️ Processed \(validPostsCount)/\(postsWithURLs.count) posts (\(failedCount) failed to get signed URLs)")
+                if failedURLs > 0 {
+                    print("⚠️ Processed \(postsWithURLs)/\(posts.count) posts (\(failedURLs) failed to get complete data)")
                 } else {
-                    print("✅ All \(postsWithURLs.count) posts have signed URLs")
+                    print("✅ All \(posts.count) posts fully loaded with like/comment counts")
                 }
 
-                return postsWithURLs
+                return posts
             }
         }.value
     }

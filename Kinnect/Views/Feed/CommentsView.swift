@@ -12,11 +12,12 @@ struct CommentsView: View {
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isInputFocused: Bool
 
-    init(postId: UUID, currentUserId: UUID, onCommentCountChanged: @escaping (Int) -> Void) {
+    init(postId: UUID, currentUserId: UUID, source: ViewModelSource, onCommentCountChanged: @escaping (Int) -> Void) {
         _viewModel = StateObject(
             wrappedValue: CommentViewModel(
                 postId: postId,
                 currentUserId: currentUserId,
+                source: source,
                 onCommentCountChanged: onCommentCountChanged
             )
         )
@@ -226,6 +227,7 @@ struct CommentsView: View {
     CommentsView(
         postId: UUID(),
         currentUserId: UUID(),
+        source: .feedViewModel,
         onCommentCountChanged: { _ in }
     )
 }

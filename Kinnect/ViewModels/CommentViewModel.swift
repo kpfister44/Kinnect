@@ -21,6 +21,7 @@ final class CommentViewModel: ObservableObject {
     private let commentService: CommentService
     private let postId: UUID
     let currentUserId: UUID // Exposed for CommentCellView
+    private let source: ViewModelSource
     private let onCommentCountChanged: (Int) -> Void
 
     // MARK: - Initialization
@@ -28,11 +29,13 @@ final class CommentViewModel: ObservableObject {
     init(
         postId: UUID,
         currentUserId: UUID,
+        source: ViewModelSource,
         commentService: CommentService? = nil,
         onCommentCountChanged: @escaping (Int) -> Void
     ) {
         self.postId = postId
         self.currentUserId = currentUserId
+        self.source = source
         self.commentService = commentService ?? .shared
         self.onCommentCountChanged = onCommentCountChanged
     }
@@ -113,6 +116,11 @@ final class CommentViewModel: ObservableObject {
             await loadComments()
 
             print("✅ Comment posted successfully")
+
+            // Notify other ViewModels about comment count change (with source to prevent self-notification)
+            let payload = CommentNotificationPayload(postId: postId, source: source)
+            NotificationCenter.default.post(name: .userDidCommentOnPost, object: payload)
+            print("📡 Posted userDidCommentOnPost notification for post: \(postId) from \(source.rawValue)")
         } catch {
             print("❌ Failed to post comment: \(error)")
 
@@ -143,6 +151,11 @@ final class CommentViewModel: ObservableObject {
             )
 
             print("✅ Comment deleted successfully")
+
+            // Notify other ViewModels about comment deletion (with source to prevent self-notification)
+            let payload = CommentNotificationPayload(postId: postId, source: source)
+            NotificationCenter.default.post(name: .userDidDeleteComment, object: payload)
+            print("📡 Posted userDidDeleteComment notification for post: \(postId) from \(source.rawValue)")
         } catch {
             print("❌ Failed to delete comment: \(error)")
 

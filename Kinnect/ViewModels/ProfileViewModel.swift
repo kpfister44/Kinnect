@@ -301,7 +301,7 @@ final class ProfileViewModel: ObservableObject {
             do {
                 async let profileData = profileService.fetchProfile(userId: userId)
                 async let statsData = profileService.getProfileStats(userId: userId)
-                async let postsData = profileService.fetchUserPosts(userId: userId)
+                async let postsData = profileService.fetchUserPosts(userId: userId, currentUserId: currentUserId)
 
                 let (fetchedProfile, fetchedStats, fetchedPosts) = try await (profileData, statsData, postsData)
                 let (hydratedPosts, droppedIDs) = await profileService.rehydrateMissingMedia(for: fetchedPosts)
