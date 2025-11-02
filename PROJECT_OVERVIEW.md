@@ -202,21 +202,12 @@ Detailed documentation for implemented features:
 - SwiftUI views remain declarative and side-effect free
 - ViewModels handle business logic, state, and async operations
 
-### Testing
-- Unit tests for all ViewModels
-- UI tests for critical user flows (auth, upload, feed)
-- Add features incrementally and test thoroughly
-
 ### Backend Operations
 - Always use Supabase MCP tools for backend changes
 - Apply schema changes via `mcp__supabase__apply_migration`
 - Run `mcp__supabase__get_advisors` after schema changes
 - Monitor with `mcp__supabase__get_logs` for debugging
 
-### Priorities
-1. **Simplicity** – Avoid over-engineering
-2. **Privacy** – Never compromise user data
-3. **Reliability** – Ensure smooth, bug-free experiences
 
 ### SwiftUI Best Practices
 
