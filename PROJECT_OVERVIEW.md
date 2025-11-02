@@ -15,6 +15,7 @@ A private, Instagram-style iOS app for sharing photos and videos with close fami
 - Like & Comment System for social interaction
 - Profile View displaying user posts and metadata
 - Activity notifications for likes, comments, and new posts
+- Pinch-to-zoom on post images for detail viewing
 
 **Goal:** Simplicity and privacy — a beautiful, familiar experience for small groups of trusted people.
 
@@ -188,6 +189,9 @@ Detailed documentation for implemented features:
 
 **`/docs/features/PROFILE_FEED_NAVIGATION.md`** – Profile Feed Navigation
 - ProfileFeedViewModel, scroll-to-post, Instagram-style grid → feed navigation
+
+**`/docs/features/IMAGE_ZOOM.md`** – Pinch-to-Zoom Images
+- ZoomableImageView component, gesture handling, scroll blocking, AsyncImage compatibility
 
 ---
 
