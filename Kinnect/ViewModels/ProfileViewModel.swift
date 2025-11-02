@@ -590,6 +590,10 @@ final class ProfileViewModel: ObservableObject {
                 )
                 profileCache[profileUserId] = updatedCache
             }
+
+            // Notify FeedViewModel to invalidate cache (new posts from followed user should appear)
+            NotificationCenter.default.post(name: .userDidUpdateFollowing, object: nil)
+            print("📡 Posted userDidUpdateFollowing notification")
         } catch {
             // Revert on error
             print("❌ Follow toggle error: \(error)")

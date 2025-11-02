@@ -517,6 +517,29 @@ struct ProfileStats {
 
 ---
 
+### Feed Not Refreshing After Follow ✅ FIXED
+
+**Date Fixed:** November 2, 2025
+
+**Symptom:**
+When a user followed someone from the Search tab, their posts did not appear in the Feed tab until the user closed and reopened the app. Posts should appear immediately after switching back to the Feed tab.
+
+**Root Cause:**
+FeedViewModel uses a 45-minute cache to improve performance. When a user followed someone, the cache was not invalidated. The cache was created BEFORE the follow operation, so it didn't include the newly followed user's posts. When switching to Feed tab, `loadFeed()` found the cache valid and returned old posts without refetching.
+
+**Solution:**
+Implemented notification-based cache invalidation using the existing pattern:
+
+1. Added `.userDidUpdateFollowing` notification name (`Notification+Extensions.swift:20-21`)
+2. ProfileViewModel posts notification after successful follow/unfollow (`ProfileViewModel.swift:594-596`)
+3. FeedViewModel observes notification and invalidates cache (`FeedViewModel.swift:134-143`)
+
+**Result:** ✅ Feed now automatically refreshes on next tab switch after following/unfollowing someone
+
+**Key Insight:** Cache invalidation strategies must account for ALL operations that affect feed content, not just direct post creation/deletion. Following/unfollowing changes which posts should be visible in the feed.
+
+---
+
 ## Important Learnings
 
 ### Supabase Foreign Key Joins

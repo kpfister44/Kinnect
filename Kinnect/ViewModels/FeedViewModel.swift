@@ -131,6 +131,17 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
             print("📢 Profile updated - showing refresh banner")
         }
 
+        // Invalidate cache when user follows/unfollows someone (their posts should appear/disappear in feed)
+        NotificationCenter.default.addObserver(
+            forName: .userDidUpdateFollowing,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            self.invalidateCache()
+            print("📡 Following updated - cache invalidated, will refresh on next feed view")
+        }
+
         // Listen for post deletions from other views (ProfileFeedView)
         NotificationCenter.default.addObserver(
             forName: .userDidDeletePost,
