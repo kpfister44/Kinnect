@@ -31,8 +31,8 @@ struct ZoomableImageViewTests {
 
     @Test func scaleClampingWithinBounds() async throws {
         // Given: ZoomableImageView scale bounds
-        let minScale = 1.0
-        let maxScale = 3.0
+        let minScale: CGFloat = 1.0
+        let maxScale: CGFloat = 3.0
 
         // When: Various scale values are clamped
         let testCases: [(input: CGFloat, expected: CGFloat)] = [
