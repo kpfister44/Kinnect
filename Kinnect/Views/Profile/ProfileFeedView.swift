@@ -14,6 +14,7 @@ struct ProfileFeedView: View {
 
     @StateObject private var viewModel: ProfileFeedViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var isZooming = false
 
     init(userId: UUID, initialPostId: UUID, currentUserId: UUID) {
         self.userId = userId
@@ -79,7 +80,8 @@ struct ProfileFeedView: View {
                         PostCellView(
                             post: post,
                             mediaURL: viewModel.getMediaURL(for: post),
-                            viewModel: viewModel
+                            viewModel: viewModel,
+                            isZooming: $isZooming
                         )
                         .id(post.id)
 
@@ -90,6 +92,7 @@ struct ProfileFeedView: View {
                     }
                 }
             }
+            .scrollDisabled(isZooming)
             .scrollIndicators(.hidden)
             .onAppear {
                 // Scroll to initial post after layout completes

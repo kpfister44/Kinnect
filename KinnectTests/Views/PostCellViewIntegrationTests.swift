@@ -11,7 +11,7 @@ import SwiftUI
 
 struct PostCellViewIntegrationTests {
 
-    @Test func postCellViewAcceptsIsZoomingBinding() async throws {
+    @Test @MainActor func postCellViewAcceptsIsZoomingBinding() async throws {
         // Given: A mock view model and post
         let currentUserId = UUID()
         let viewModel = FeedViewModel(currentUserId: currentUserId)

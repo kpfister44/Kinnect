@@ -11,16 +11,18 @@ struct PostCellView<ViewModel: FeedInteractionViewModel>: View {
     let post: Post
     var mediaURL: URL? // Real Supabase URL
     @ObservedObject var viewModel: ViewModel
+    @Binding var isZooming: Bool
 
     @State private var isExpanded = false
     @State private var showingComments = false
     @State private var showDeleteConfirmation = false
     @State private var showUnfollowConfirmation = false
 
-    init(post: Post, mediaURL: URL?, viewModel: ViewModel) {
+    init(post: Post, mediaURL: URL?, viewModel: ViewModel, isZooming: Binding<Bool>) {
         self.post = post
         self.mediaURL = mediaURL
         self.viewModel = viewModel
+        self._isZooming = isZooming
     }
 
     private var shouldTruncate: Bool {
@@ -123,56 +125,16 @@ struct PostCellView<ViewModel: FeedInteractionViewModel>: View {
     // MARK: - View Components
 
     private var imageView: some View {
-        AsyncImage(url: mediaURL) { phase in
-            switch phase {
-            case .empty:
-                Rectangle()
-                    .fill(Color.igSeparator)
-                    .overlay(ProgressView().tint(.igTextSecondary))
-                    .aspectRatio(1, contentMode: .fit)
-                    .onAppear {
-                        print("🖼️ AsyncImage EMPTY for post \(post.id)")
-                        print("🖼️ mediaURL provided: \(mediaURL?.absoluteString ?? "nil")")
-                    }
-            case .success(let image):
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .aspectRatio(1, contentMode: .fit)
-                    .clipped()
-                    .onAppear {
-                        print("✅ AsyncImage SUCCESS for post \(post.id)")
-                    }
-            case .failure(let error):
-                Rectangle()
-                    .fill(Color.igSeparator)
-                    .overlay(
-                        VStack(spacing: 8) {
-                            Image(systemName: "photo")
-                                .font(.system(size: 40))
-                                .foregroundColor(.igTextSecondary)
-                            Text("Failed to load")
-                                .font(.system(size: 12))
-                                .foregroundColor(.igTextSecondary)
-                        }
-                    )
-                    .aspectRatio(1, contentMode: .fit)
-                    .onAppear {
-                        print("❌ AsyncImage FAILURE for post \(post.id)")
-                        print("❌ Error: \(error)")
-                        print("❌ mediaURL provided: \(mediaURL?.absoluteString ?? "nil")")
-
-                        if let urlError = error as? URLError, urlError.code == .cancelled {
-                            viewModel.recordImageCancellation(for: post.id)
-                        }
-                    }
-            @unknown default:
-                Rectangle()
-                    .fill(Color.igSeparator)
-                    .aspectRatio(1, contentMode: .fit)
+        ZoomableImageView(
+            url: mediaURL,
+            asyncImageID: viewModel.getAsyncImageID(for: post.id),
+            isZooming: $isZooming,
+            onImageFailure: { error in
+                if let urlError = error as? URLError, urlError.code == .cancelled {
+                    viewModel.recordImageCancellation(for: post.id)
+                }
             }
-        }
-        .id(viewModel.getAsyncImageID(for: post.id))
+        )
     }
 
     private var actionButtonsView: some View {
@@ -303,6 +265,7 @@ struct CaptionView: View {
 
 // MARK: - Preview
 #Preview {
+    @Previewable @State var isZooming = false
     let viewModel = FeedViewModel(currentUserId: UUID())
 
     return VStack(spacing: 0) {
@@ -327,7 +290,8 @@ struct CaptionView: View {
                 isLikedByCurrentUser: false
             ),
             mediaURL: URL(string: "https://picsum.photos/600/600"),
-            viewModel: viewModel
+            viewModel: viewModel,
+            isZooming: $isZooming
         )
 
         Divider()
@@ -353,7 +317,8 @@ struct CaptionView: View {
                 isLikedByCurrentUser: true
             ),
             mediaURL: URL(string: "https://picsum.photos/600/600?random=2"),
-            viewModel: viewModel
+            viewModel: viewModel,
+            isZooming: $isZooming
         )
     }
 }

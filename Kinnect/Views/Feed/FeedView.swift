@@ -13,6 +13,7 @@ struct FeedView: View {
 
     // MARK: - State
     @StateObject private var viewModel: FeedViewModel
+    @State private var isZooming = false
 
     // MARK: - Initialization
     init(currentUserId: UUID) {
@@ -197,7 +198,8 @@ struct FeedView: View {
                             PostCellView(
                                 post: post,
                                 mediaURL: viewModel.getMediaURL(for: post),
-                                viewModel: viewModel
+                                viewModel: viewModel,
+                                isZooming: $isZooming
                             )
                             .id(post.id) // Ensure SwiftUI tracks each cell by post ID
                             .task {
@@ -210,6 +212,7 @@ struct FeedView: View {
                         }
                     }
                 }
+                .scrollDisabled(isZooming)
                 .scrollIndicators(.hidden)
                 .onChange(of: viewModel.pendingNewPostsCount) { oldValue, newValue in
                     // When user taps banner, scroll to top
