@@ -116,14 +116,9 @@ struct ProfileView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button(role: .destructive, action: {
-                            Task {
-                                await authViewModel.signOut()
-                            }
-                        }) {
-                            Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
-                        }
+                    NavigationLink {
+                        SettingsView()
+                            .environmentObject(authViewModel)
                     } label: {
                         Image(systemName: "line.3.horizontal")
                             .foregroundColor(.igTextPrimary)
