@@ -63,7 +63,7 @@ struct SettingsView: View {
                 }
 
                 NavigationLink {
-                    Text("Change Password") // Placeholder
+                    ChangePasswordView()
                 } label: {
                     SettingsRowView(
                         icon: "key",
