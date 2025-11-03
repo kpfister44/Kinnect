@@ -6,6 +6,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @StateObject private var profileViewModel = ProfileViewModel()
+    @StateObject private var viewModel = SettingsViewModel()
     @State private var showLogoutAlert = false
     @AppStorage("isDarkMode") private var isDarkMode = false
 
@@ -37,7 +38,22 @@ struct SettingsView: View {
                 }
 
                 NavigationLink {
-                    Text("Account Info") // Placeholder
+                    if let email = viewModel.userEmail,
+                       let userId = viewModel.userId,
+                       let createdAt = viewModel.accountCreatedAt {
+                        AccountInfoView(
+                            email: email,
+                            userId: userId,
+                            createdAt: createdAt
+                        )
+                    } else {
+                        ProgressView()
+                            .onAppear {
+                                Task {
+                                    await viewModel.fetchAccountInfo()
+                                }
+                            }
+                    }
                 } label: {
                     SettingsRowView(
                         icon: "info.circle",
@@ -178,6 +194,11 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("Are you sure you want to log out?")
+            }
+        }
+        .onAppear {
+            Task {
+                await viewModel.fetchAccountInfo()
             }
         }
     }
