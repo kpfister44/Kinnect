@@ -73,6 +73,9 @@ struct TabBarView: View {
                 }
                 .tag(Tab.profile)
         }
+        .task {
+            await activityViewModel.updateUnreadCount()
+        }
         .tint(.igBlack) // Instagram uses black for selected tab items
     }
 }

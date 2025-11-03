@@ -297,4 +297,47 @@ Detailed documentation for implemented features:
 - Services layer: `AuthService.swift`, `FeedService.swift`, `PostService.swift`, etc.
 - ViewModels: `AuthViewModel.swift`, `FeedViewModel.swift`, `ProfileViewModel.swift`, etc.
 
+---
+
+## Build & Test Commands
+
+**iOS Requirements:** iOS 17.6 or higher
+
+**Recommended Test Simulator:** iPhone 17 Pro (iOS 26.0)
+- Simulator ID: `EF725271-CEFF-4F32-BCFD-CB8AE1593258`
+
+**Build project:**
+```bash
+xcodebuild build -scheme Kinnect -destination 'platform=iOS Simulator,id=EF725271-CEFF-4F32-BCFD-CB8AE1593258'
+```
+
+**Run all tests:**
+```bash
+xcodebuild test -scheme Kinnect -destination 'platform=iOS Simulator,id=EF725271-CEFF-4F32-BCFD-CB8AE1593258'
+```
+
+**Run UI tests only:**
+```bash
+xcodebuild test -scheme Kinnect -destination 'platform=iOS Simulator,id=EF725271-CEFF-4F32-BCFD-CB8AE1593258' -only-testing:KinnectUITests
+```
+
+**Run unit tests only:**
+```bash
+xcodebuild test -scheme Kinnect -destination 'platform=iOS Simulator,id=EF725271-CEFF-4F32-BCFD-CB8AE1593258' -only-testing:KinnectTests
+```
+
+**Run specific test:**
+```bash
+xcodebuild test -scheme Kinnect -destination 'platform=iOS Simulator,id=EF725271-CEFF-4F32-BCFD-CB8AE1593258' -only-testing:KinnectUITests/KinnectUITests/testActivityBadgeAppearsOnLaunchWithoutVisitingTab
+```
+
+**List available simulators:**
+```bash
+xcrun simctl list devices available | grep "iPhone"
+```
+
+**Note:** Always use a simulator ID (not just name) to avoid version conflicts. Any iOS 17.6+ simulator will work.
+
+---
+
 **Built with Swift, SwiftUI, and Supabase.**

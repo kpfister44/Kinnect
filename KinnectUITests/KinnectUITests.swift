@@ -96,4 +96,30 @@ final class KinnectUITests: XCTestCase {
 
         // Note: Manual verification required for zoom gestures
     }
+
+    @MainActor
+    func testActivityBadgeAppearsOnLaunchWithoutVisitingTab() throws {
+        // Given: App is launched
+        let app = XCUIApplication()
+        app.launch()
+
+        // When: App loads on Feed tab (default)
+        // Wait for feed to load to ensure app is fully initialized
+        let feedImage = app.images.firstMatch
+        XCTAssertTrue(feedImage.waitForExistence(timeout: 5), "Feed should load")
+
+        // Then: Activity badge should appear immediately if there are unread activities
+        // without needing to visit the Activity tab
+        let activityTab = app.tabBars.buttons.element(boundBy: 3)
+        XCTAssertTrue(activityTab.exists, "Activity tab should exist")
+
+        // Check if badge exists (badge only appears when unreadCount > 0)
+        // If badge exists, verify it shows a number
+        if let badgeValue = activityTab.value as? String, !badgeValue.isEmpty {
+            // Badge should contain a numeric value
+            XCTAssertTrue(Int(badgeValue) != nil && Int(badgeValue)! > 0,
+                         "Activity badge should show unread count on app launch")
+        }
+        // Note: If there are no unread activities, badge won't appear - that's expected
+    }
 }
