@@ -5,6 +5,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
+    @StateObject private var profileViewModel = ProfileViewModel()
     @State private var showLogoutAlert = false
     @AppStorage("isDarkMode") private var isDarkMode = false
 
@@ -13,7 +14,20 @@ struct SettingsView: View {
             // MARK: - Account Section
             Section(header: Text("Account").textCase(.uppercase)) {
                 NavigationLink {
-                    Text("Edit Profile") // Placeholder - will wire to EditProfileView
+                    if let profile = profileViewModel.profile {
+                        EditProfileView(
+                            viewModel: profileViewModel,
+                            profile: profile
+                        )
+                    } else {
+                        ProgressView()
+                            .onAppear {
+                                Task {
+                                    guard case .authenticated(let userId) = authViewModel.authState else { return }
+                                    await profileViewModel.loadProfile(userId: userId, currentUserId: userId)
+                                }
+                            }
+                    }
                 } label: {
                     SettingsRowView(
                         icon: "person.circle",

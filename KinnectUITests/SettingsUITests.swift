@@ -62,4 +62,23 @@ final class SettingsUITests: XCTestCase {
         let toggleValue = darkModeToggle.value as? String
         XCTAssertEqual(toggleValue, "1", "Toggle should be on")
     }
+
+    @MainActor
+    func testNavigateToEditProfileFromSettings() throws {
+        // Given: User is in settings
+        let app = XCUIApplication()
+        app.launch()
+
+        app.tabBars.buttons["Profile"].tap()
+        app.navigationBars.buttons["line.3.horizontal"].tap()
+
+        // When: User taps Edit Profile
+        let editProfileButton = app.buttons["Edit Profile"]
+        XCTAssertTrue(editProfileButton.waitForExistence(timeout: 2))
+        editProfileButton.tap()
+
+        // Then: Edit Profile screen should appear
+        let editProfileTitle = app.navigationBars["Edit Profile"]
+        XCTAssertTrue(editProfileTitle.waitForExistence(timeout: 2), "Edit Profile screen should appear")
+    }
 }
