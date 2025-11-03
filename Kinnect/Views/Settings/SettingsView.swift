@@ -6,6 +6,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @State private var showLogoutAlert = false
+    @AppStorage("isDarkMode") private var isDarkMode = false
 
     var body: some View {
         List {
@@ -97,8 +98,9 @@ struct SettingsView: View {
                         iconColor: .igTextSecondary
                     )
 
-                    Toggle("", isOn: .constant(false)) // Placeholder
+                    Toggle("", isOn: $isDarkMode)
                         .labelsHidden()
+                        .accessibilityLabel("Dark Mode Toggle")
                 }
             }
 

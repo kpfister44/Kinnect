@@ -10,11 +10,13 @@ import SwiftUI
 @main
 struct KinnectApp: App {
     @StateObject private var authViewModel = AuthViewModel()
+    @AppStorage("isDarkMode") private var isDarkMode = false
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(authViewModel)
+                .preferredColorScheme(isDarkMode ? .dark : .light)
                 .task {
                     await authViewModel.checkAuthStatus()
                 }
