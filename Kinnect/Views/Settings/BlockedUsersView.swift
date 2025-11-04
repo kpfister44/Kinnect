@@ -77,5 +77,14 @@ struct BlockedUsersView: View {
             guard case .authenticated(let userId) = authViewModel.authState else { return }
             await viewModel.fetchBlockedUsers(userId: userId)
         }
+        .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
+            Button("OK") {
+                viewModel.errorMessage = nil
+            }
+        } message: {
+            if let error = viewModel.errorMessage {
+                Text(error)
+            }
+        }
     }
 }
