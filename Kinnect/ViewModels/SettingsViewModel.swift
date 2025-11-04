@@ -16,10 +16,16 @@ final class SettingsViewModel: ObservableObject {
 
     private let authService: AuthService
     private let profileService: ProfileService
+    private let settingsService: SettingsService
 
-    init(authService: AuthService = AuthService(), profileService: ProfileService = ProfileService.shared) {
+    init(
+        authService: AuthService = AuthService(),
+        profileService: ProfileService = ProfileService.shared,
+        settingsService: SettingsService = SettingsService.shared
+    ) {
         self.authService = authService
         self.profileService = profileService
+        self.settingsService = settingsService
     }
 
     func fetchAccountInfo() async {
@@ -43,6 +49,23 @@ final class SettingsViewModel: ObservableObject {
             }
         } catch {
             errorMessage = "Failed to fetch account info: \(error.localizedDescription)"
+        }
+    }
+
+    func deleteAccount() async {
+        guard let userId = userId else {
+            errorMessage = "User ID not found"
+            return
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            try await settingsService.deleteAccount(userId: userId)
+            // Sign out will happen automatically when auth session becomes invalid
+        } catch {
+            errorMessage = "Failed to delete account: \(error.localizedDescription)"
         }
     }
 }

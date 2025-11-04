@@ -81,4 +81,27 @@ final class SettingsUITests: XCTestCase {
         let editProfileTitle = app.navigationBars["Edit Profile"]
         XCTAssertTrue(editProfileTitle.waitForExistence(timeout: 2), "Edit Profile screen should appear")
     }
+
+    @MainActor
+    func testDeleteAccountShowsConfirmation() throws {
+        // Given: User is in settings
+        let app = XCUIApplication()
+        app.launch()
+
+        app.tabBars.buttons["Profile"].tap()
+        app.navigationBars.buttons["line.3.horizontal"].tap()
+
+        // When: User taps Delete Account
+        let deleteButton = app.buttons["Delete Account"]
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 2))
+        deleteButton.tap()
+
+        // Then: Confirmation alert should appear
+        let alert = app.alerts["Delete Account"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 2), "Delete confirmation alert should appear")
+        XCTAssertTrue(alert.buttons["Cancel"].exists)
+
+        // Cleanup: Cancel the alert
+        alert.buttons["Cancel"].tap()
+    }
 }

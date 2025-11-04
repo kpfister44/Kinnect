@@ -8,6 +8,8 @@ struct SettingsView: View {
     @StateObject private var profileViewModel = ProfileViewModel()
     @StateObject private var viewModel = SettingsViewModel()
     @State private var showLogoutAlert = false
+    @State private var showDeleteAlert1 = false
+    @State private var showDeleteAlert2 = false
     @AppStorage("isDarkMode") private var isDarkMode = false
 
     var body: some View {
@@ -73,7 +75,7 @@ struct SettingsView: View {
                 }
 
                 Button {
-                    // Delete account - placeholder
+                    showDeleteAlert1 = true
                 } label: {
                     SettingsRowView(
                         icon: "trash",
@@ -195,6 +197,28 @@ struct SettingsView: View {
             } message: {
                 Text("Are you sure you want to log out?")
             }
+        }
+        .alert("Delete Account", isPresented: $showDeleteAlert1) {
+            Button("Cancel", role: .cancel) {}
+            Button("Continue", role: .destructive) {
+                showDeleteAlert2 = true
+            }
+        } message: {
+            Text("Are you sure you want to delete your account?")
+        }
+        .alert("Delete Account", isPresented: $showDeleteAlert2) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                Task {
+                    await viewModel.deleteAccount()
+                    // Sign out on success
+                    if viewModel.errorMessage == nil {
+                        await authViewModel.signOut()
+                    }
+                }
+            }
+        } message: {
+            Text("This action is permanent and cannot be undone. All your posts, comments, and data will be deleted.")
         }
         .onAppear {
             Task {
