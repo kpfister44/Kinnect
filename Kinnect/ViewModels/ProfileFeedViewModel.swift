@@ -343,6 +343,12 @@ final class ProfileFeedViewModel: ObservableObject, FeedInteractionViewModel {
         }
     }
 
+    /// Remove all posts by a specific author (used after blocking)
+    func removePostsByAuthor(_ authorId: UUID) async {
+        posts.removeAll(where: { $0.author == authorId })
+        print("✅ Removed all posts by author \(authorId) from profile feed after block")
+    }
+
     /// Record image cancellation - increment reload counter to force AsyncImage recreation
     /// AsyncImage caches failure states, so we need new ID to bypass cache
     func recordImageCancellation(for postID: UUID) {

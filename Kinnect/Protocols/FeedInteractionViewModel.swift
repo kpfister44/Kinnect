@@ -20,6 +20,7 @@ protocol FeedInteractionViewModel: ObservableObject {
     func updateCommentCount(for postId: UUID, newCount: Int)
     func deletePost(_ post: Post) async
     func unfollowPostAuthor(_ post: Post) async
+    func removePostsByAuthor(_ authorId: UUID) async
     func recordImageCancellation(for postID: UUID)
     func getAsyncImageID(for postID: UUID) -> String
 }

@@ -17,6 +17,8 @@ struct PostCellView<ViewModel: FeedInteractionViewModel>: View {
     @State private var showingComments = false
     @State private var showDeleteConfirmation = false
     @State private var showUnfollowConfirmation = false
+    @State private var showBlockAlert = false
+    @State private var showPostMenu = false
 
     init(post: Post, mediaURL: URL?, viewModel: ViewModel, isZooming: Binding<Bool>) {
         self.post = post
@@ -120,6 +122,16 @@ struct PostCellView<ViewModel: FeedInteractionViewModel>: View {
         } message: {
             Text("Their posts will no longer appear in your feed.")
         }
+        .alert("Block @\(post.authorProfile?.username ?? "User")?", isPresented: $showBlockAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Block", role: .destructive) {
+                Task {
+                    await blockUser()
+                }
+            }
+        } message: {
+            Text("You won't see posts from this user in your feed.")
+        }
     }
 
     // MARK: - View Components
@@ -195,14 +207,33 @@ struct PostCellView<ViewModel: FeedInteractionViewModel>: View {
             Spacer()
 
             // Three-dot menu
-            Button {
-                handleThreeDotMenuTap()
+            Menu {
+                if post.author == viewModel.currentUserId {
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                } else {
+                    Button(role: .destructive) {
+                        showUnfollowConfirmation = true
+                    } label: {
+                        Label("Unfollow", systemImage: "person.badge.minus")
+                    }
+
+                    Button(role: .destructive) {
+                        showBlockAlert = true
+                    } label: {
+                        Label("Block User", systemImage: "hand.raised")
+                    }
+                }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.igTextPrimary)
                     .frame(width: 44, height: 44)
             }
+            .accessibilityIdentifier("post-menu")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -210,14 +241,16 @@ struct PostCellView<ViewModel: FeedInteractionViewModel>: View {
 
     // MARK: - Actions
 
-    private func handleThreeDotMenuTap() {
-        // Check if this is the current user's post
-        let isOwnPost = post.author == viewModel.currentUserId
+    private func blockUser() async {
+        let currentUserId = viewModel.currentUserId
 
-        if isOwnPost {
-            showDeleteConfirmation = true
-        } else {
-            showUnfollowConfirmation = true
+        do {
+            try await BlockService.shared.blockUser(blockerId: currentUserId, blockedId: post.author)
+            // Optimistically remove post from feed
+            await viewModel.removePostsByAuthor(post.author)
+        } catch {
+            // Error handling - in production would show user-facing error
+            print("Failed to block user: \(error)")
         }
     }
 }

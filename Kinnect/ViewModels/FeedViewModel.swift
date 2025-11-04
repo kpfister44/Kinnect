@@ -1083,4 +1083,11 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
         }
     }
 
+    /// Remove all posts by a specific author (used after blocking)
+    func removePostsByAuthor(_ authorId: UUID) async {
+        posts.removeAll(where: { $0.author == authorId })
+        cachedPosts.removeAll(where: { $0.author == authorId })
+        print("✅ Removed all posts by author \(authorId) from feed after block")
+    }
+
 }
