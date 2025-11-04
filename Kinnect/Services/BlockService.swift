@@ -78,4 +78,39 @@ final class BlockService {
 
         return (response.count ?? 0) > 0
     }
+
+    /// Get list of user IDs that are blocked bidirectionally (users I blocked OR users who blocked me)
+    func getBlockedUserIds(userId: UUID) async throws -> [UUID] {
+        struct BlockRow: Decodable {
+            let blockerId: String
+            let blockedId: String
+
+            enum CodingKeys: String, CodingKey {
+                case blockerId = "blocker_id"
+                case blockedId = "blocked_id"
+            }
+        }
+
+        // Fetch all blocks where I'm either the blocker or the blocked
+        let response = try await client
+            .from("blocks")
+            .select("blocker_id, blocked_id")
+            .or("blocker_id.eq.\(userId.uuidString),blocked_id.eq.\(userId.uuidString)")
+            .execute()
+
+        let rows = try JSONDecoder.supabase.decode([BlockRow].self, from: response.data)
+
+        // Extract the "other" user ID from each block (not the current user)
+        var blockedUserIds: Set<UUID> = []
+        for row in rows {
+            if let blockerId = UUID(uuidString: row.blockerId), blockerId != userId {
+                blockedUserIds.insert(blockerId)
+            }
+            if let blockedId = UUID(uuidString: row.blockedId), blockedId != userId {
+                blockedUserIds.insert(blockedId)
+            }
+        }
+
+        return Array(blockedUserIds)
+    }
 }
