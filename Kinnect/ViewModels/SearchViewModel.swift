@@ -23,6 +23,7 @@ final class SearchViewModel: ObservableObject {
     private let followService: FollowService
     private var searchTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
+    private var currentUserId: UUID?
 
     // MARK: - Initialization
 
@@ -31,6 +32,12 @@ final class SearchViewModel: ObservableObject {
 
         // Set up search debouncing
         setupSearchDebouncing()
+    }
+
+    // MARK: - Configuration
+
+    func setCurrentUserId(_ userId: UUID) {
+        self.currentUserId = userId
     }
 
     // MARK: - Search Debouncing
@@ -68,7 +75,7 @@ final class SearchViewModel: ObservableObject {
             errorMessage = nil
 
             do {
-                let results = try await followService.searchUsers(query: query)
+                let results = try await followService.searchUsers(query: query, currentUserId: currentUserId)
 
                 // Check if task was cancelled
                 guard !Task.isCancelled else { return }

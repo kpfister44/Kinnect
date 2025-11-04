@@ -38,6 +38,11 @@ struct SearchView: View {
             .navigationTitle("Search")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $viewModel.searchText, prompt: "Search users")
+            .onAppear {
+                if case .authenticated(let userId) = authViewModel.authState {
+                    viewModel.setCurrentUserId(userId)
+                }
+            }
         }
     }
 

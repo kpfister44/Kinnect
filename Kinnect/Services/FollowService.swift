@@ -173,7 +173,7 @@ final class FollowService {
     /// Search for users by username (case-insensitive)
     /// - Parameter query: Search query string
     /// - Returns: Array of matching profiles (max 20)
-    func searchUsers(query: String) async throws -> [Profile] {
+    func searchUsers(query: String, currentUserId: UUID? = nil) async throws -> [Profile] {
         guard !query.isEmpty else {
             return []
         }
@@ -191,7 +191,15 @@ final class FollowService {
             .limit(20)
             .execute()
 
-        let profiles = try JSONDecoder.supabase.decode([Profile].self, from: response.data)
+        var profiles = try JSONDecoder.supabase.decode([Profile].self, from: response.data)
+
+        // Filter out blocked users (bidirectional) if currentUserId provided
+        if let currentUserId = currentUserId {
+            let blockService = BlockService.shared
+            let blockedUserIds = try await blockService.getBlockedUserIds(userId: currentUserId)
+            profiles.removeAll(where: { blockedUserIds.contains($0.id) })
+            print("🔍 Filtered out \(blockedUserIds.count) blocked users from search results")
+        }
 
         print("✅ Found \(profiles.count) users")
         return profiles
