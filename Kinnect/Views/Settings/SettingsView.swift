@@ -88,7 +88,7 @@ struct SettingsView: View {
             // MARK: - Privacy Section
             Section(header: Text("Privacy").textCase(.uppercase)) {
                 NavigationLink {
-                    Text("Blocked Users") // Placeholder
+                    BlockedUsersView()
                 } label: {
                     SettingsRowView(
                         icon: "hand.raised",
