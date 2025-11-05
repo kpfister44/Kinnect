@@ -98,3 +98,7 @@ Secrets.plist
 
 # Worktrees
 .worktrees/
+
+# Local-only docs
+AGENTS.md
+CLAUDE.md
