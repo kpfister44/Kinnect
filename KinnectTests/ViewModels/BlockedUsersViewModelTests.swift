@@ -5,6 +5,21 @@ import Testing
 import Foundation
 @testable import Kinnect
 
+final class MockBlockManager: BlockManaging {
+    var blockedUsersToReturn: [Profile] = []
+    var fetchCalledWith: UUID?
+    var unblockCalledWith: (blockerId: UUID, blockedId: UUID)?
+
+    func fetchBlockedUsers(userId: UUID) async throws -> [Profile] {
+        fetchCalledWith = userId
+        return blockedUsersToReturn
+    }
+
+    func unblockUser(blockerId: UUID, blockedId: UUID) async throws {
+        unblockCalledWith = (blockerId, blockedId)
+    }
+}
+
 @MainActor
 struct BlockedUsersViewModelTests {
 
@@ -66,5 +81,48 @@ struct BlockedUsersViewModelTests {
         // Note: unblockUser guards against missing currentUserId
         #expect(viewModel.blockedUsers.count == 1)
         #expect(viewModel.errorMessage == nil) // No error, just early return
+    }
+
+    @Test func unblockPostsBlockedUsersNotification() async throws {
+        // Given: ViewModel with mock service and fetched blocked user
+        let mockService = MockBlockManager()
+        let currentUserId = UUID()
+        let blockedProfile = Profile(
+            id: UUID(),
+            username: "blocked_user",
+            avatarUrl: nil,
+            fullName: nil,
+            bio: nil,
+            createdAt: Date()
+        )
+        mockService.blockedUsersToReturn = [blockedProfile]
+
+        let viewModel = BlockedUsersViewModel(blockService: mockService)
+
+        await viewModel.fetchBlockedUsers(userId: currentUserId)
+        #expect(mockService.fetchCalledWith == currentUserId)
+        #expect(viewModel.blockedUsers == [blockedProfile])
+
+        var notificationReceived = false
+        let observer = NotificationCenter.default.addObserver(
+            forName: .userDidUpdateBlockedUsers,
+            object: nil,
+            queue: nil
+        ) { _ in
+            notificationReceived = true
+        }
+
+        defer {
+            NotificationCenter.default.removeObserver(observer)
+        }
+
+        // When: Unblocking the user
+        await viewModel.unblockUser(blockedUserId: blockedProfile.id)
+
+        // Then: Should call service, remove from list, and post notification
+        #expect(mockService.unblockCalledWith?.blockerId == currentUserId)
+        #expect(mockService.unblockCalledWith?.blockedId == blockedProfile.id)
+        #expect(notificationReceived)
+        #expect(viewModel.blockedUsers.isEmpty)
     }
 }

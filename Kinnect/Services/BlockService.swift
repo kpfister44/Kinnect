@@ -4,6 +4,11 @@
 import Foundation
 import Supabase
 
+protocol BlockManaging {
+    func fetchBlockedUsers(userId: UUID) async throws -> [Profile]
+    func unblockUser(blockerId: UUID, blockedId: UUID) async throws
+}
+
 final class BlockService {
     static let shared = BlockService()
 
@@ -119,3 +124,5 @@ final class BlockService {
         return Array(blockedUserIds)
     }
 }
+
+extension BlockService: BlockManaging {}

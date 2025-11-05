@@ -11,10 +11,10 @@ final class BlockedUsersViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    private let blockService: BlockService
+    private let blockService: BlockManaging
     private var currentUserId: UUID?
 
-    init(blockService: BlockService = BlockService.shared) {
+    init(blockService: BlockManaging = BlockService.shared) {
         self.blockService = blockService
     }
 
@@ -41,6 +41,8 @@ final class BlockedUsersViewModel: ObservableObject {
 
             // Remove from local list
             blockedUsers.removeAll { $0.id == blockedUserId }
+
+            NotificationCenter.default.post(name: .userDidUpdateBlockedUsers, object: nil)
         } catch {
             errorMessage = "Failed to unblock user: \(error.localizedDescription)"
         }
