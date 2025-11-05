@@ -89,6 +89,7 @@ struct SettingsView: View {
             Section(header: Text("Privacy").textCase(.uppercase)) {
                 NavigationLink {
                     BlockedUsersView()
+                        .environmentObject(authViewModel)
                 } label: {
                     SettingsRowView(
                         icon: "hand.raised",

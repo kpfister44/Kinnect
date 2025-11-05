@@ -198,7 +198,6 @@ final class FollowService {
             let blockService = BlockService.shared
             let blockedUserIds = try await blockService.getBlockedUserIds(userId: currentUserId)
             profiles.removeAll(where: { blockedUserIds.contains($0.id) })
-            print("🔍 Filtered out \(blockedUserIds.count) blocked users from search results")
         }
 
         print("✅ Found \(profiles.count) users")

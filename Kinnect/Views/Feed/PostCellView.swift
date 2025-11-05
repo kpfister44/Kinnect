@@ -132,9 +132,29 @@ struct PostCellView<ViewModel: FeedInteractionViewModel>: View {
         } message: {
             Text("You won't see posts from this user in your feed.")
         }
+        .alert("Error", isPresented: errorAlertBinding) {
+            Button("OK", role: .cancel) {
+                viewModel.errorMessage = nil
+            }
+        } message: {
+            if let errorMessage = viewModel.errorMessage {
+                Text(errorMessage)
+            }
+        }
     }
 
     // MARK: - View Components
+
+    var errorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    viewModel.errorMessage = nil
+                }
+            }
+        )
+    }
 
     private var imageView: some View {
         ZoomableImageView(
@@ -249,8 +269,9 @@ struct PostCellView<ViewModel: FeedInteractionViewModel>: View {
             // Optimistically remove post from feed
             await viewModel.removePostsByAuthor(post.author)
         } catch {
-            // Error handling - in production would show user-facing error
-            print("Failed to block user: \(error)")
+            await MainActor.run {
+                viewModel.errorMessage = "Failed to block user. Please try again."
+            }
         }
     }
 }

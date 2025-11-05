@@ -74,4 +74,49 @@ struct PostCellViewIntegrationTests {
         isZooming = false
         #expect(isZooming == false)
     }
+
+    @Test @MainActor func errorAlertBindingClearsErrorMessage() throws {
+        // Given: A post and view model with an error message
+        let currentUserId = UUID()
+        let viewModel = FeedViewModel(currentUserId: currentUserId)
+
+        let post = Post(
+            id: UUID(),
+            author: UUID(),
+            caption: "Test",
+            mediaKey: "media-key",
+            mediaType: .photo,
+            createdAt: Date(),
+            authorProfile: nil,
+            likeCount: 0,
+            commentCount: 0,
+            isLikedByCurrentUser: false
+        )
+
+        var isZooming = false
+        let binding = Binding(
+            get: { isZooming },
+            set: { isZooming = $0 }
+        )
+
+        var view = PostCellView(
+            post: post,
+            mediaURL: nil,
+            viewModel: viewModel,
+            isZooming: binding
+        )
+
+        // When: The view model reports an error
+        viewModel.errorMessage = "Something went wrong"
+
+        // Then: The error alert binding should reflect the error state
+        let errorBinding = view.errorAlertBinding
+        #expect(errorBinding.wrappedValue == true)
+
+        // When: The alert is dismissed
+        errorBinding.wrappedValue = false
+
+        // Then: The error message should be cleared
+        #expect(viewModel.errorMessage == nil)
+    }
 }

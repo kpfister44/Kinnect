@@ -50,22 +50,27 @@ final class BlockService {
 
     /// Fetch list of blocked users
     func fetchBlockedUsers(userId: UUID) async throws -> [Profile] {
-        struct BlockRow: Decodable {
-            let blockedProfile: Profile
-
-            enum CodingKeys: String, CodingKey {
-                case blockedProfile = "blocked:profiles!blocked_id"
-            }
-        }
-
         let response = try await client
             .from("blocks")
             .select("blocked:profiles!blocked_id(*)")
             .eq("blocker_id", value: userId.uuidString)
             .execute()
 
-        let rows = try JSONDecoder.supabase.decode([BlockRow].self, from: response.data)
-        return rows.map { $0.blockedProfile }
+        return try decodeBlockedUsers(from: response.data)
+    }
+
+    /// Decode blocked users payload returned from Supabase join
+    func decodeBlockedUsers(from data: Data) throws -> [Profile] {
+        struct BlockRow: Decodable {
+            let blockedProfile: Profile?
+
+            enum CodingKeys: String, CodingKey {
+                case blockedProfile = "blocked"
+            }
+        }
+
+        let rows = try JSONDecoder.supabase.decode([BlockRow].self, from: data)
+        return rows.compactMap { $0.blockedProfile }
     }
 
     /// Check if a user is blocked (either direction)

@@ -46,14 +46,11 @@ final class FeedService {
         // Step 2: Get list of blocked user IDs (bidirectional)
         let blockService = BlockService.shared
         let blockedUserIds = try await blockService.getBlockedUserIds(userId: currentUserId)
-        print("📱 Filtering out \(blockedUserIds.count) blocked users (bidirectional)")
 
         // Step 3: Build list of author IDs (followed users + current user - blocked users)
         var authorIds = followedUserIds
         authorIds.append(currentUserId)
         authorIds.removeAll(where: { blockedUserIds.contains($0) })
-
-        print("📱 Fetching posts from \(authorIds.count) users (including self, excluding blocked)")
 
         // Step 4: Fetch posts from these authors
         let response = try await client

@@ -16,7 +16,7 @@ final class PostMenuUITests: XCTestCase {
         app.launch()
 
         // When: User taps three-dot menu on first post
-        let menuButton = app.buttons["ellipsis"].firstMatch
+        let menuButton = app.buttons["post-menu"].firstMatch
         XCTAssertTrue(menuButton.waitForExistence(timeout: 5))
         menuButton.tap()
 
