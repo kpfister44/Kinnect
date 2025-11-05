@@ -131,6 +131,17 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
             print("📢 Profile updated - showing refresh banner")
         }
 
+        // Invalidate cache when blocked users change (blocked/unblocked users should reflect in feed)
+        NotificationCenter.default.addObserver(
+            forName: .userDidUpdateBlockedUsers,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            self.invalidateCache()
+            print("🚫 Block list updated - cache invalidated, will refresh on next feed view")
+        }
+
         // Invalidate cache when user follows/unfollows someone (their posts should appear/disappear in feed)
         NotificationCenter.default.addObserver(
             forName: .userDidUpdateFollowing,

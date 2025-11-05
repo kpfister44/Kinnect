@@ -20,6 +20,9 @@ extension Notification.Name {
     /// Posted when user follows or unfollows someone - used to invalidate feed cache
     static let userDidUpdateFollowing = Notification.Name("userDidUpdateFollowing")
 
+    /// Posted when user updates blocked users list - used to invalidate feed cache
+    static let userDidUpdateBlockedUsers = Notification.Name("userDidUpdateBlockedUsers")
+
     /// Posted when user deletes a post - used to sync deletion across ViewModels
     static let userDidDeletePost = Notification.Name("userDidDeletePost")
 
