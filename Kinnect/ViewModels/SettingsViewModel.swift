@@ -13,6 +13,8 @@ final class SettingsViewModel: ObservableObject {
     @Published var accountCreatedAt: Date?
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var showCacheSuccessAlert = false
+    @Published var exportedDataURL: URL?
 
     private let authService: AuthService
     private let profileService: ProfileService
@@ -68,4 +70,57 @@ final class SettingsViewModel: ObservableObject {
             errorMessage = "Failed to delete account: \(error.localizedDescription)"
         }
     }
+
+    func clearCache() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        URLCache.shared.removeAllCachedResponses()
+        NotificationCenter.default.post(name: .clearAllCaches, object: nil)
+
+        showCacheSuccessAlert = true
+    }
+
+    func exportUserData() async {
+        guard let userId = userId else {
+            errorMessage = "User ID not found"
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            guard let session = await authService.currentSession() else {
+                errorMessage = "No active session"
+                return
+            }
+
+            let data = try await SupabaseService.shared.client.functions.invoke(
+                "export-user-data",
+                options: FunctionInvokeOptions(
+                    headers: [
+                        "Authorization": "Bearer \(session.accessToken)"
+                    ],
+                    body: ["userId": userId.uuidString]
+                )
+            ) { data, _ in data }
+
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileURL = tempDir.appendingPathComponent("kinnect-data-\(userId.uuidString).json")
+            try data.write(to: fileURL)
+
+            await MainActor.run {
+                exportedDataURL = fileURL
+            }
+        } catch {
+            errorMessage = "Failed to export data: \(error.localizedDescription)"
+        }
+    }
+}
+
+extension Notification.Name {
+    static let clearAllCaches = Notification.Name("clearAllCaches")
 }

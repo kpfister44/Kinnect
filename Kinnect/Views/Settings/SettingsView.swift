@@ -102,7 +102,9 @@ struct SettingsView: View {
             // MARK: - Data & Storage Section
             Section(header: Text("Data & Storage").textCase(.uppercase)) {
                 Button {
-                    // Clear cache - placeholder
+                    Task {
+                        await viewModel.clearCache()
+                    }
                 } label: {
                     SettingsRowView(
                         icon: "trash.circle",
@@ -110,6 +112,7 @@ struct SettingsView: View {
                         iconColor: .igTextSecondary
                     )
                 }
+                .disabled(viewModel.isLoading)
 
                 NavigationLink {
                     Text("Download My Data") // Placeholder
@@ -220,6 +223,11 @@ struct SettingsView: View {
             }
         } message: {
             Text("This action is permanent and cannot be undone. All your posts, comments, and data will be deleted.")
+        }
+        .alert("Cache Cleared", isPresented: $viewModel.showCacheSuccessAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("All cached data has been cleared.")
         }
         .onAppear {
             Task {
