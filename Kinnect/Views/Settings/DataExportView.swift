@@ -48,9 +48,14 @@ struct DataExportView: View {
             Section {
                 Button {
                     Task {
+                        await MainActor.run {
+                            showShareSheet = false
+                        }
                         await viewModel.exportUserData()
                         if viewModel.exportedDataURL != nil {
-                            showShareSheet = true
+                            await MainActor.run {
+                                showShareSheet = true
+                            }
                         }
                     }
                 } label: {
