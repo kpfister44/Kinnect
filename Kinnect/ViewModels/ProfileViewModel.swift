@@ -182,6 +182,18 @@ final class ProfileViewModel: ObservableObject {
             print("🗑️ All profile caches cleared on logout")
         }
 
+        NotificationCenter.default.addObserver(
+            forName: .clearAllCaches,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.invalidateAllCaches()
+            self?.posts = []
+            self?.profile = nil
+            self?.stats = nil
+            print("🧹 Global clear cache requested - profile caches cleared")
+        }
+
         // Listen for post deletions from other views (FeedView, ProfileFeedView)
         NotificationCenter.default.addObserver(
             forName: .userDidDeletePost,

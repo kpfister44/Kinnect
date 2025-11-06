@@ -37,6 +37,9 @@ extension Notification.Name {
 
     /// Posted when user deletes a comment - used to sync comment counts across ViewModels
     static let userDidDeleteComment = Notification.Name("userDidDeleteComment")
+
+    /// Posted when user selects "Clear Cache" in settings to invalidate cached data across view models
+    static let clearAllCaches = Notification.Name("clearAllCaches")
 }
 
 // MARK: - Notification Payloads (Bug Fix #2: Prevent self-notification double-counting)

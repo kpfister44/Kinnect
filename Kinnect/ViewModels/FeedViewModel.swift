@@ -105,6 +105,17 @@ final class FeedViewModel: ObservableObject, FeedInteractionViewModel {
             print("🗑️ Cache cleared on logout")
         }
 
+        NotificationCenter.default.addObserver(
+            forName: .clearAllCaches,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.invalidateCache()
+            self?.posts = []
+            self?.state = .idle
+            print("🧹 Global clear cache requested - feed cache and posts cleared")
+        }
+
         // Show banner when user creates a post (so they can refresh to see it)
         NotificationCenter.default.addObserver(
             forName: .userDidCreatePost,

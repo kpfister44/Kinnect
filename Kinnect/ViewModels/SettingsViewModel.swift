@@ -137,7 +137,3 @@ final class SettingsViewModel: ObservableObject {
         }
     }
 }
-
-extension Notification.Name {
-    static let clearAllCaches = Notification.Name("clearAllCaches")
-}
