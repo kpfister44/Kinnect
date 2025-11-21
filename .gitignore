@@ -102,3 +102,10 @@ Secrets.plist
 # Local-only docs
 AGENTS.md
 CLAUDE.md
+PLAN.md
+PROJECT_OVERVIEW.md
+architect-onboarding.md
+architect-quick-start-prompt.md
+tasks-15-18-prompt.md
+docs/
+Kinnect/Resources/README.md
