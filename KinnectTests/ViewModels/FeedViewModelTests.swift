@@ -19,4 +19,16 @@ struct FeedViewModelTests {
         // Then: Cache should be invalidated
         #expect(viewModel.isCacheStale == false)
     }
+
+    @Test func clearAllCachesNotificationInvalidatesFeedCache() async throws {
+        // Given: FeedViewModel with cached state
+        let viewModel = FeedViewModel(currentUserId: UUID())
+        viewModel.isCacheStale = true
+
+        // When: Triggering global cache clear
+        NotificationCenter.default.post(name: .clearAllCaches, object: nil)
+
+        // Then: Cache should be invalidated and marked not stale
+        #expect(viewModel.isCacheStale == false)
+    }
 }
